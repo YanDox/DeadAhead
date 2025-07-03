@@ -26,13 +26,13 @@ public class SC_CameraCollision : MonoBehaviour
 
 	private Vector3 _defaultPos;
 	private Vector3 _directionNormalized;
-	private Transform _parentTransform;
-	private float _defaultDistance;
-	private Camera _playerCamera;
+    private Vector3 _currentOffset;
+    private Transform _parentTransform;
+    private Camera _playerCamera;
+    private SC_TPSController _tpsController;
+    private float _defaultDistance;
 	private float _defaultFOV;
-	private SC_TPSController _tpsController;
 	private float _currentFOV;
-	private Vector3 _currentOffset;
 
 	public bool IsAiming => _isAiming;
 

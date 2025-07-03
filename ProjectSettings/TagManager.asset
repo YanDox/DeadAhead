@@ -7,6 +7,7 @@ TagManager:
   - Workshop
   - Companion
   - Cover
+  - Zombie
   layers:
   - Default
   - TransparentFX

@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.AI;
 using System.Collections;
+using System.Collections.Generic;
 
 public class CompanionAI : MonoBehaviour
 {
@@ -8,7 +9,9 @@ public class CompanionAI : MonoBehaviour
     {
         Staying,
         Following,
-        GoingToWorkshop
+        GoingToWorkshop,
+        Defense,
+        Getaway
     }
 
     [Header("Follow Settings")]
@@ -19,10 +22,10 @@ public class CompanionAI : MonoBehaviour
     public float rotationSpeed = 3f;
 
     [Header("Stay Point Settings")]
-    public Transform targetStayPoint;
     public float stayPointRadius = 7f;
-    public KeyCode stayToggleKey = KeyCode.E;
     public float detectionRadius = 15f;
+    public Transform targetStayPoint;
+    public KeyCode stayToggleKey = KeyCode.E;
 
     [Header("Detection")]
     public float checkInterval = 0.1f;
@@ -31,24 +34,34 @@ public class CompanionAI : MonoBehaviour
     [Header("Collision Settings")]
     public float collisionCooldown = 0.5f;
 
-    private SC_TPSController player;
-    private NavMeshAgent agent;
+    [Header("Zombie Reaction Settings")]
+    public float zombieDetectionRadius = 15f;
+    public float shootingChance = 0f;
+    public float reactionCooldown = 1f;
+    public GameObject projectilePrefab;
+    public Transform shootPoint;
+
+    private CompanionState currentState = CompanionState.Staying;
+    private CompanionState stateBeforeReaction;
     private float lastCheckTime;
     private float lastCollisionTime;
-    private CompanionState currentState = CompanionState.Staying;
-    private Animator animator;
+    private float lastReactionTime;
     private bool workshopDetected = false;
-    private CompanionHealth health;
     private bool isManualStay = false;
+    private bool isReactingToZombie = false;
+    private SC_TPSController player;
+    private NavMeshAgent agent;
+    //private Animator animator;
+    private CompanionHealth health;
 
     void Start()
     {
+        FindWorkshop();
         player = FindObjectOfType<SC_TPSController>();
         health = GetComponent<CompanionHealth>();
-        FindWorkshop();
 
         agent = GetComponent<NavMeshAgent>();
-        animator = GetComponent<Animator>();
+        //animator = GetComponent<Animator>();
 
         agent.speed = movementSpeed;
         agent.angularSpeed = rotationSpeed;
@@ -61,7 +74,12 @@ public class CompanionAI : MonoBehaviour
         FindWorkshop();
         CheckWorkshopDetection();
 
-        if (Input.GetKeyDown(stayToggleKey))
+        if (currentState != CompanionState.GoingToWorkshop)
+        {
+            CheckZombieThreat();
+        }
+
+        if (!isReactingToZombie && Input.GetKeyDown(stayToggleKey))
         {
             ToggleFollowMode();
         }
@@ -79,15 +97,19 @@ public class CompanionAI : MonoBehaviour
             case CompanionState.GoingToWorkshop:
                 UpdateGoingToWorkshop();
                 break;
+            case CompanionState.Defense:
+                UpdateDefense();
+                break;
+            case CompanionState.Getaway:
+                UpdateGetaway();
+                break;
         }
     }
 
     private void UpdateStaying()
     {
-        // Остановка движения
         agent.isStopped = true;
 
-        // Автоматическое следование при приближении игрока (только если не в ручном режиме)
         if (!isManualStay && player != null &&
             Vector3.Distance(transform.position, player.transform.position) <= stopDistance)
         {
@@ -97,21 +119,18 @@ public class CompanionAI : MonoBehaviour
 
     private void UpdateFollowing()
     {
-        // Проверка на превышение stopDistance
         if (player != null && Vector3.Distance(transform.position, player.transform.position) > stopDistance)
         {
             currentState = CompanionState.Staying;
             return;
         }
 
-        // Автоматический переход в режим ожидания у мастерской
         if (!isManualStay && ShouldAutoStay())
         {
             currentState = CompanionState.Staying;
             return;
         }
 
-        // Проверка расстояния к игроку с интервалом
         if (Time.time - lastCheckTime > checkInterval)
         {
             CheckDistanceToPlayer();
@@ -119,43 +138,22 @@ public class CompanionAI : MonoBehaviour
         }
     }
 
-    private void UpdateGoingToWorkshop()
-    {
-        if (targetStayPoint == null)
-        {
-            currentState = CompanionState.Following;
-            return;
-        }
-
-        // Проверка достигли ли мастерской
-        if (Vector3.Distance(transform.position, targetStayPoint.position) <= stayPointRadius)
-        {
-            currentState = CompanionState.Staying;
-            return;
-        }
-
-        // Продолжаем идти к мастерской
-        agent.isStopped = false;
-        agent.SetDestination(targetStayPoint.position);
-    }
-
     private void ToggleFollowMode()
     {
         isManualStay = !isManualStay;
 
+        if (isReactingToZombie) return;
+
         if (isManualStay)
         {
-            // Активируем ручное ожидание
             currentState = CompanionState.Staying;
         }
         else
         {
-            // Проверяем расстояние до игрока
             if (player != null)
             {
                 float distance = Vector3.Distance(transform.position, player.transform.position);
 
-                // Если игрок рядом - сразу начинаем следовать
                 if (distance <= followDistance)
                 {
                     currentState = CompanionState.Following;
@@ -166,6 +164,142 @@ public class CompanionAI : MonoBehaviour
                 }
             }
         }
+    }
+
+    private void CheckZombieThreat()
+    {
+        if (Time.time - lastReactionTime < reactionCooldown ||
+            isReactingToZombie)
+            return;
+
+        Transform nearestZombie = FindNearestZombieInRadius(zombieDetectionRadius);
+
+        if (nearestZombie != null)
+        {
+            isReactingToZombie = true;
+            lastReactionTime = Time.time;
+
+            stateBeforeReaction = currentState;
+
+            bool defend = Random.Range(0f, 1f) <= shootingChance;
+            currentState = defend ? CompanionState.Defense : CompanionState.Getaway;
+
+            StartCoroutine(defend ? DefendAgainstZombie(nearestZombie) : EscapeFromZombie(nearestZombie));
+        }
+    }
+
+    private Transform FindNearestZombieInRadius(float radius)
+    {
+        Transform nearest = null;
+        float minSqrDistance = Mathf.Infinity;
+        float sqrRadius = radius * radius; // Используем квадрат радиуса для сравнения
+
+        // Получаем всех зомби по тегу
+        GameObject[] zombies = GameObject.FindGameObjectsWithTag("Zombie");
+
+        foreach (GameObject zombie in zombies)
+        {
+            if (zombie == null) continue;
+
+            // Вычисляем квадрат расстояния (оптимизация)
+            Vector3 toZombie = zombie.transform.position - transform.position;
+            float sqrDistance = toZombie.sqrMagnitude;
+
+            // Проверяем в радиусе с помощью квадрата расстояния
+            if (sqrDistance <= sqrRadius && sqrDistance < minSqrDistance)
+            {
+                minSqrDistance = sqrDistance;
+                nearest = zombie.transform;
+            }
+        }
+        return nearest;
+    }
+
+    private IEnumerator DefendAgainstZombie(Transform zombieTarget)
+    {
+        Debug.Log("Companion: Defending position!");
+        //if (animator != null) animator.SetTrigger("Shoot");
+
+        if (zombieTarget != null)
+        {
+            // Поворот к цели
+            Vector3 direction = (zombieTarget.position - transform.position).normalized;
+            Quaternion lookRotation = Quaternion.LookRotation(new Vector3(direction.x, 0, direction.z));
+            transform.rotation = lookRotation;
+
+            // Создание снаряда
+            if (projectilePrefab && shootPoint)
+            {
+                Instantiate(projectilePrefab, shootPoint.position, lookRotation);
+            }
+        }
+
+        yield return new WaitForSeconds(1f);
+
+        if (this == null) yield break;
+
+        isReactingToZombie = false;
+        currentState = stateBeforeReaction;
+    }
+
+    private IEnumerator EscapeFromZombie(Transform zombieTarget)
+    {
+        Debug.Log("Companion: Running away!");
+
+        // Расчет точки побега
+        Vector3 escapeDirection = zombieTarget != null
+            ? (transform.position - zombieTarget.position).normalized
+            : -transform.forward;
+
+        // Рассчитываем желаемую точку побега
+        Vector3 desiredEscapePoint = transform.position + escapeDirection * stopDistance * 2;
+
+        // Пытаемся найти ближайшую точку на NavMesh
+        Vector3 finalEscapePoint = desiredEscapePoint; // По умолчанию используем желаемую точку
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(desiredEscapePoint, out hit, 5.0f, NavMesh.AllAreas))
+        {
+            finalEscapePoint = hit.position;
+        }
+        else
+        {
+            Debug.LogWarning("Escape point not found on NavMesh! Using fallback position");
+        }
+
+        // Устанавливаем точку назначения
+        agent.SetDestination(finalEscapePoint);
+        agent.isStopped = false;
+
+        // Ждем достижения точки или таймаут
+        float escapeTimer = 0f;
+        while ((agent.pathPending || agent.remainingDistance > 0.5f) && escapeTimer < 5f)
+        {
+            escapeTimer += Time.deltaTime;
+            yield return null;
+        }
+
+        isReactingToZombie = false;
+        currentState = stateBeforeReaction;
+        Debug.Log("Escape completed!");
+    }
+
+    private void UpdateDefense()
+    {
+        agent.isStopped = true;
+
+        //Добавляем поворот к цели
+        Transform nearestZombie = FindNearestZombieInRadius(zombieDetectionRadius);
+        if (nearestZombie != null)
+        {
+            Vector3 direction = (nearestZombie.position - transform.position).normalized;
+            Quaternion lookRotation = Quaternion.LookRotation(new Vector3(direction.x, 0, direction.z));
+            transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, Time.deltaTime * rotationSpeed);
+        }
+    }
+
+    private void UpdateGetaway()
+    {
+
     }
 
     private void FindWorkshop()
@@ -180,6 +314,25 @@ public class CompanionAI : MonoBehaviour
         }
     }
 
+    private void UpdateGoingToWorkshop()
+    {
+        if (targetStayPoint == null)
+        {
+            currentState = CompanionState.Following;
+            return;
+        }
+
+        if (Vector3.Distance(transform.position, targetStayPoint.position) <= stayPointRadius)
+        {
+            currentState = CompanionState.Staying;
+            return;
+        }
+
+        agent.isStopped = false;
+        agent.SetDestination(targetStayPoint.position);
+    }
+
+
     private void CheckWorkshopDetection()
     {
         if (targetStayPoint == null) return;
@@ -187,7 +340,6 @@ public class CompanionAI : MonoBehaviour
         float distance = Vector3.Distance(transform.position, targetStayPoint.position);
         workshopDetected = distance <= detectionRadius;
 
-        // Переход к мастерской при обнаружении
         if (workshopDetected && currentState != CompanionState.Staying)
         {
             currentState = CompanionState.GoingToWorkshop;
@@ -205,13 +357,11 @@ public class CompanionAI : MonoBehaviour
 
         float distanceToPlayer = Vector3.Distance(transform.position, player.transform.position);
 
-        // Сохраняем оригинальную логику активации движения
         if (distanceToPlayer > minFollowDistance && distanceToPlayer <= followDistance)
         {
             agent.isStopped = false;
             agent.SetDestination(player.transform.position);
         }
-        // Добавляем условие для продолжения движения
         else if (distanceToPlayer > minFollowDistance && distanceToPlayer <= stopDistance && !agent.isStopped)
         {
             // Продолжаем движение если уже двигались
@@ -286,5 +436,8 @@ public class CompanionAI : MonoBehaviour
             Gizmos.color = Color.cyan;
             Gizmos.DrawWireSphere(targetStayPoint.position, stayPointRadius);
         }
+
+        Gizmos.color = new Color(1, 0.5f, 0);
+        Gizmos.DrawWireSphere(transform.position, zombieDetectionRadius);
     }
 }
