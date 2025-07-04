@@ -38,7 +38,6 @@ public class CompanionAI : MonoBehaviour
     [Header("Zombie Reaction Settings")]
     public float zombieDetectionRadius = 15f;
     public float reactionCooldown = 1f;
-    public float shootingChance = 1f;
     public LayerMask zombieLayerMask;
 
     [Header("Melee Attack Settings")]
@@ -194,18 +193,17 @@ public class CompanionAI : MonoBehaviour
             lastReactionTime = Time.time;
             stateBeforeReaction = currentState;
 
-            bool defend = Random.Range(0f, 1f) <= shootingChance;
-            if (defend)
+            float reactionChoice = Random.Range(0f, 1f);
+
+            if (reactionChoice <= 0.25f) // 25% - оборона
             {
-                currentTarget = nearestZombie;
-                agent.speed = chaseSpeed;
-                currentState = CompanionState.Defense;
+                StartDefense(nearestZombie);
             }
-            else
+            else if (reactionChoice <= 0.75f) // 50% - побег
             {
-                currentState = CompanionState.Getaway;
-                StartCoroutine(EscapeFromZombie(nearestZombie));
+                StartGetaway(nearestZombie);
             }
+            // else 25% - остаемся в текущем состоянии (ничего не делаем)
         }
     }
 
@@ -217,6 +215,24 @@ public class CompanionAI : MonoBehaviour
                 CheckZombieThreat();
             yield return new WaitForSeconds(reactionCooldown);
         }
+    }
+
+    private void StartDefense(Transform zombie)
+    {
+        isReactingToZombie = true;
+        stateBeforeReaction = currentState;
+
+        currentTarget = zombie;
+        agent.speed = chaseSpeed;
+        currentState = CompanionState.Defense;
+    }
+
+    private void StartGetaway(Transform zombie)
+    {
+        isReactingToZombie = true;
+        stateBeforeReaction = currentState;
+        currentState = CompanionState.Getaway;
+        StartCoroutine(EscapeFromZombie(zombie));
     }
 
     private Transform FindNearestZombieInRadius(float radius)
