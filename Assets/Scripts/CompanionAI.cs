@@ -53,8 +53,8 @@ public class CompanionAI : MonoBehaviour
     private bool isReactingToZombie = false;
     private SC_TPSController player;
     private NavMeshAgent agent;
-    //private Animator animator;
     private CompanionHealth health;
+    //private Animator animator;
 
     void Start()
     {
@@ -170,8 +170,7 @@ public class CompanionAI : MonoBehaviour
 
     private void CheckZombieThreat()
     {
-        if (Time.time - lastReactionTime < reactionCooldown ||
-            isReactingToZombie)
+        if (Time.time - lastReactionTime < reactionCooldown || isReactingToZombie)
             return;
 
         Transform nearestZombie = FindNearestZombieInRadius(zombieDetectionRadius);
@@ -329,7 +328,9 @@ public class CompanionAI : MonoBehaviour
         float distance = Vector3.Distance(transform.position, targetStayPoint.position);
         workshopDetected = distance <= detectionRadius;
 
-        if (workshopDetected && currentState != CompanionState.Staying)
+        if (workshopDetected && currentState != CompanionState.Staying &&
+        currentState != CompanionState.GoingToWorkshop &&
+        !isReactingToZombie)
         {
             currentState = CompanionState.GoingToWorkshop;
         }
