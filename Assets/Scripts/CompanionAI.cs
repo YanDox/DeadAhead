@@ -16,10 +16,10 @@ public class CompanionAI : MonoBehaviour
 
     [Header("Follow Settings")]
     public float followDistance = 5f;
-    public float stopDistance = 10f;
-    public float minFollowDistance = 1f;
-    public float movementSpeed = 3f;
-    public float rotationSpeed = 3f;
+    public float stopDistance = 15f;
+    public float minFollowDistance = 0.5f;
+    public float movementSpeed = 5f;
+    public float rotationSpeed = 4f;
 
     [Header("Stay Point Settings")]
     public float stayPointRadius = 7f;
@@ -33,10 +33,12 @@ public class CompanionAI : MonoBehaviour
 
     [Header("Collision Settings")]
     public float collisionCooldown = 0.5f;
+    public float repulsionForce = 5f;
+    public float minDistance = 0.35f;
 
     [Header("Zombie Reaction Settings")]
     public float zombieDetectionRadius = 15f;
-    public float shootingChance = 0f;
+    public float shootingChance = 0.25f;
     public float reactionCooldown = 1f;
     public GameObject projectilePrefab;
     public Transform shootPoint;
@@ -67,6 +69,11 @@ public class CompanionAI : MonoBehaviour
         agent.angularSpeed = rotationSpeed;
         agent.stoppingDistance = minFollowDistance;
         agent.autoBraking = true;
+    }
+
+    void FixedUpdate()
+    {
+        ApplyMinDistanceEnforcement();
     }
 
     void Update()
@@ -192,20 +199,17 @@ public class CompanionAI : MonoBehaviour
     {
         Transform nearest = null;
         float minSqrDistance = Mathf.Infinity;
-        float sqrRadius = radius * radius; // Используем квадрат радиуса для сравнения
+        float sqrRadius = radius * radius;
 
-        // Получаем всех зомби по тегу
         GameObject[] zombies = GameObject.FindGameObjectsWithTag("Zombie");
 
         foreach (GameObject zombie in zombies)
         {
             if (zombie == null) continue;
 
-            // Вычисляем квадрат расстояния (оптимизация)
             Vector3 toZombie = zombie.transform.position - transform.position;
             float sqrDistance = toZombie.sqrMagnitude;
 
-            // Проверяем в радиусе с помощью квадрата расстояния
             if (sqrDistance <= sqrRadius && sqrDistance < minSqrDistance)
             {
                 minSqrDistance = sqrDistance;
@@ -227,7 +231,6 @@ public class CompanionAI : MonoBehaviour
             Quaternion lookRotation = Quaternion.LookRotation(new Vector3(direction.x, 0, direction.z));
             transform.rotation = lookRotation;
 
-            // Создание снаряда
             if (projectilePrefab && shootPoint)
             {
                 Instantiate(projectilePrefab, shootPoint.position, lookRotation);
@@ -251,26 +254,18 @@ public class CompanionAI : MonoBehaviour
             ? (transform.position - zombieTarget.position).normalized
             : -transform.forward;
 
-        // Рассчитываем желаемую точку побега
         Vector3 desiredEscapePoint = transform.position + escapeDirection * stopDistance * 2;
 
-        // Пытаемся найти ближайшую точку на NavMesh
-        Vector3 finalEscapePoint = desiredEscapePoint; // По умолчанию используем желаемую точку
+        Vector3 finalEscapePoint = desiredEscapePoint;
         NavMeshHit hit;
         if (NavMesh.SamplePosition(desiredEscapePoint, out hit, 5.0f, NavMesh.AllAreas))
         {
             finalEscapePoint = hit.position;
         }
-        else
-        {
-            Debug.LogWarning("Escape point not found on NavMesh! Using fallback position");
-        }
 
-        // Устанавливаем точку назначения
         agent.SetDestination(finalEscapePoint);
         agent.isStopped = false;
 
-        // Ждем достижения точки или таймаут
         float escapeTimer = 0f;
         while ((agent.pathPending || agent.remainingDistance > 0.5f) && escapeTimer < 5f)
         {
@@ -280,7 +275,6 @@ public class CompanionAI : MonoBehaviour
 
         isReactingToZombie = false;
         currentState = stateBeforeReaction;
-        Debug.Log("Escape completed!");
     }
 
     private void UpdateDefense()
@@ -356,20 +350,78 @@ public class CompanionAI : MonoBehaviour
         if (player == null) return;
 
         float distanceToPlayer = Vector3.Distance(transform.position, player.transform.position);
+        float adjustedDistance = distanceToPlayer - minFollowDistance;
+
 
         if (distanceToPlayer > minFollowDistance && distanceToPlayer <= followDistance)
         {
             agent.isStopped = false;
+            Vector3 direction = (transform.position - player.transform.position).normalized;
+            Vector3 targetPosition = player.transform.position + direction * minFollowDistance;
+
+            // Проверяем доступность позиции
+            NavMeshHit hit;
+            if (NavMesh.SamplePosition(targetPosition, out hit, 1.0f, NavMesh.AllAreas))
+            {
+                agent.SetDestination(hit.position);
+            }
+            else
+            {
+                agent.SetDestination(player.transform.position);
+            }
+        }
+        else if (distanceToPlayer > followDistance && distanceToPlayer <= stopDistance)
+        {
             agent.SetDestination(player.transform.position);
         }
-        else if (distanceToPlayer > minFollowDistance && distanceToPlayer <= stopDistance && !agent.isStopped)
+        else if (adjustedDistance <= minFollowDistance)
         {
-            // Продолжаем движение если уже двигались
-            agent.SetDestination(player.transform.position);
+            if (agent.velocity.sqrMagnitude > 0.1f)
+            {
+                agent.velocity *= 0.85f;
+            }
+            else
+            {
+                agent.isStopped = true;
+            }
         }
         else
         {
             agent.isStopped = true;
+        }
+    }
+
+    private void ApplyMinDistanceEnforcement()
+    {
+        Collider[] colliders = Physics.OverlapSphere(transform.position, minDistance);
+
+        foreach (Collider col in colliders)
+        {
+            if (col.transform == transform || col.isTrigger) continue;
+            
+            float requiredDistance = minDistance;
+            if (col.CompareTag("Player"))
+            {
+                requiredDistance = minFollowDistance;
+            }
+
+            Vector3 direction = (transform.position - col.transform.position).normalized;
+            float currentDistance = Vector3.Distance(transform.position, col.transform.position);
+
+            if (currentDistance < requiredDistance)
+            {
+                float overlap = requiredDistance - currentDistance;
+                Vector3 moveVector = direction * overlap;
+
+                if (agent.enabled && agent.isOnNavMesh)
+                {
+                    agent.Move(moveVector);
+                }
+                else
+                {
+                    transform.position += moveVector;
+                }
+            }
         }
     }
 
@@ -378,9 +430,9 @@ public class CompanionAI : MonoBehaviour
         if (Time.time - lastCollisionTime < collisionCooldown) return;
         lastCollisionTime = Time.time;
 
-        if (collision.gameObject.CompareTag("Player"))
+        if (collision.gameObject.CompareTag("Player") || collision.gameObject.CompareTag("Zombie"))
         {
-            HandlePlayerCollision(collision);
+            HandleCollision(collision);
         }
         else if (collision.gameObject.CompareTag("Workshop"))
         {
@@ -388,11 +440,14 @@ public class CompanionAI : MonoBehaviour
         }
     }
 
-    private void HandlePlayerCollision(Collision collision)
+    private void HandleCollision(Collision collision)
     {
         StartCoroutine(StopTemporarily(0.3f));
+
         Vector3 direction = (transform.position - collision.transform.position).normalized;
-        transform.position += direction * 0.5f;
+        float safeDistance = minDistance + 0.1f;
+
+        transform.position += direction * safeDistance;
     }
 
     private IEnumerator StopTemporarily(float duration)
