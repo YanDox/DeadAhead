@@ -84,9 +84,15 @@ public class CompanionAI : MonoBehaviour
     {
         CheckWorkshopDetection();
 
+        if (health.isDead)
+        {
+            agent.isStopped = true;
+            return;
+        }
+
         if (currentState != CompanionState.GoingToWorkshop)
         {
-            CheckZombieThreat();
+            StartCoroutine(ZombieCheckRoutine());
         }
 
         if (!isReactingToZombie && Input.GetKeyDown(stayToggleKey))
@@ -203,50 +209,58 @@ public class CompanionAI : MonoBehaviour
         }
     }
 
+    IEnumerator ZombieCheckRoutine()
+    {
+        while (true)
+        {
+            if (currentState != CompanionState.GoingToWorkshop)
+                CheckZombieThreat();
+            yield return new WaitForSeconds(reactionCooldown);
+        }
+    }
+
     private Transform FindNearestZombieInRadius(float radius)
     {
         Transform nearest = null;
-        float minSqrDistance = Mathf.Infinity;
-        float sqrRadius = radius * radius;
+        float minSqrDist = radius * radius;
+        Vector3 position = transform.position;
 
-        Collider[] colliders = new Collider[50];
-        int count = Physics.OverlapSphereNonAlloc(
-            transform.position,
-            radius,
-            colliders,
-            zombieLayerMask,
-            QueryTriggerInteraction.Ignore
-        );
-
-        for (int i = 0; i < count; i++)
+        Collider[] colliders = Physics.OverlapSphere(position, radius, zombieLayerMask);
+        foreach (var col in colliders)
         {
-            Collider col = colliders[i];
-            if (col == null || !col.gameObject.activeInHierarchy) continue;
+            if (!col.gameObject.activeInHierarchy) continue;
 
-            Vector3 toZombie = col.transform.position - transform.position;
-            float sqrDistance = toZombie.sqrMagnitude;
+            Vector3 toZombie = col.transform.position - position;
+            float sqrDist = toZombie.sqrMagnitude;
 
-            // Проверка видимости
-            bool hasClearLineOfSight = true;
-            if (obstacleLayers.value != 0)
+            if (sqrDist < minSqrDist && HasLineOfSight(col.transform))
             {
-                hasClearLineOfSight = !Physics.Linecast(
-                    transform.position,
-                    col.transform.position,
-                    obstacleLayers,
-                    QueryTriggerInteraction.Ignore
-                );
-            }
-
-            if (sqrDistance <= sqrRadius &&
-                sqrDistance < minSqrDistance &&
-                hasClearLineOfSight)
-            {
-                minSqrDistance = sqrDistance;
+                minSqrDist = sqrDist;
                 nearest = col.transform;
             }
         }
         return nearest;
+    }
+
+    private bool HasLineOfSight(Transform target)
+    {
+        if (target == null) return false;
+
+        Vector3 start = transform.position;
+        Vector3 end = target.position;
+
+        // Корректировка высоты для реалистичной проверки
+        float heightOffset = 0.5f;
+        start.y += heightOffset;
+        end.y += heightOffset;
+
+        // Проверка прямой видимости
+        return !Physics.Linecast(
+            start,
+            end,
+            obstacleLayers,
+            QueryTriggerInteraction.Ignore
+        );
     }
 
     private IEnumerator EscapeFromZombie(Transform zombieTarget)
@@ -285,15 +299,10 @@ public class CompanionAI : MonoBehaviour
         currentState = stateBeforeReaction;
     }
 
-    private void UpdateGetaway()
-    {
-
-    }
-
     private void UpdateDefense()
     {
         
-        if (currentTarget == null || !currentTarget.gameObject.activeSelf)
+        if (currentTarget == null || !currentTarget.gameObject.activeInHierarchy)
         {
             EndReaction();
             return;
@@ -333,7 +342,7 @@ public class CompanionAI : MonoBehaviour
     {
         // if (animator != null) animator.SetTrigger("Attack");
 
-        if (currentTarget != null && currentTarget.gameObject.activeSelf)
+        if (currentTarget != null && currentTarget.gameObject.activeInHierarchy)
         {
             EnemyHealth zombieHealth = currentTarget.GetComponent<EnemyHealth>();
             if (zombieHealth != null)
@@ -350,7 +359,7 @@ public class CompanionAI : MonoBehaviour
 
         yield return new WaitForSeconds(attackDuration);
 
-        if (currentTarget == null || !currentTarget.gameObject.activeSelf ||
+        if (currentTarget == null || !currentTarget.gameObject.activeInHierarchy ||
             Vector3.Distance(transform.position, currentTarget.position) > attackDistance)
         {
             EndReaction();
@@ -362,7 +371,7 @@ public class CompanionAI : MonoBehaviour
         isReactingToZombie = false;
         currentState = stateBeforeReaction;
         agent.speed = movementSpeed;
-        if (currentTarget == null || !currentTarget.gameObject.activeSelf)
+        if (currentTarget == null || !currentTarget.gameObject.activeInHierarchy)
         {
             currentTarget = null;
         }
@@ -426,7 +435,6 @@ public class CompanionAI : MonoBehaviour
         float distanceToPlayer = Vector3.Distance(transform.position, player.transform.position);
         float adjustedDistance = distanceToPlayer - minFollowDistance;
 
-
         if (distanceToPlayer > minFollowDistance && distanceToPlayer <= followDistance)
         {
             agent.isStopped = false;
@@ -487,7 +495,7 @@ public class CompanionAI : MonoBehaviour
         Vector3 direction = (transform.position - collision.transform.position).normalized;
         float safeDistance = minDistance + 0.1f;
 
-        transform.position += direction * safeDistance;
+        agent.Warp(transform.position + direction * safeDistance);
     }
 
     private IEnumerator StopTemporarily(float duration)
