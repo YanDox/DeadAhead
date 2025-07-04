@@ -1,7 +1,6 @@
 using UnityEngine;
 using UnityEngine.AI;
 using System.Collections;
-using System.Collections.Generic;
 
 public class CompanionAI : MonoBehaviour
 {
@@ -40,11 +39,12 @@ public class CompanionAI : MonoBehaviour
     public float zombieDetectionRadius = 15f;
     public float reactionCooldown = 1f;
     public float shootingChance = 1f;
+    public LayerMask zombieLayerMask;
 
     [Header("Melee Attack Settings")]
     public float attackDistance = 2f;
     public float attackRate = 1f;
-    public float attackDuration = 1f;
+    public float attackDuration = 2f;
     public float chaseSpeed = 7f;
     public float attackDamage = 1000f;
 
@@ -82,7 +82,6 @@ public class CompanionAI : MonoBehaviour
 
     void Update()
     {
-        FindWorkshop();
         CheckWorkshopDetection();
 
         if (currentState != CompanionState.GoingToWorkshop)
@@ -152,7 +151,7 @@ public class CompanionAI : MonoBehaviour
     {
         isManualStay = !isManualStay;
 
-        if (isReactingToZombie) return;
+        if (isReactingToZombie || health.isDead) return;
 
         if (isManualStay)
         {
@@ -210,19 +209,41 @@ public class CompanionAI : MonoBehaviour
         float minSqrDistance = Mathf.Infinity;
         float sqrRadius = radius * radius;
 
-        GameObject[] zombies = GameObject.FindGameObjectsWithTag("Zombie");
+        Collider[] colliders = new Collider[50];
+        int count = Physics.OverlapSphereNonAlloc(
+            transform.position,
+            radius,
+            colliders,
+            zombieLayerMask,
+            QueryTriggerInteraction.Ignore
+        );
 
-        foreach (GameObject zombie in zombies)
+        for (int i = 0; i < count; i++)
         {
-            if (zombie == null) continue;
+            Collider col = colliders[i];
+            if (col == null || !col.gameObject.activeInHierarchy) continue;
 
-            Vector3 toZombie = zombie.transform.position - transform.position;
+            Vector3 toZombie = col.transform.position - transform.position;
             float sqrDistance = toZombie.sqrMagnitude;
 
-            if (sqrDistance <= sqrRadius && sqrDistance < minSqrDistance)
+            // Проверка видимости
+            bool hasClearLineOfSight = true;
+            if (obstacleLayers.value != 0)
+            {
+                hasClearLineOfSight = !Physics.Linecast(
+                    transform.position,
+                    col.transform.position,
+                    obstacleLayers,
+                    QueryTriggerInteraction.Ignore
+                );
+            }
+
+            if (sqrDistance <= sqrRadius &&
+                sqrDistance < minSqrDistance &&
+                hasClearLineOfSight)
             {
                 minSqrDistance = sqrDistance;
-                nearest = zombie.transform;
+                nearest = col.transform;
             }
         }
         return nearest;
@@ -230,7 +251,11 @@ public class CompanionAI : MonoBehaviour
 
     private IEnumerator EscapeFromZombie(Transform zombieTarget)
     {
-        Debug.Log("Companion: Running away!");
+        if (zombieTarget == null)
+        {
+            isReactingToZombie = false;
+            yield break;
+        }
 
         // Расчет точки побега
         Vector3 escapeDirection = zombieTarget != null
@@ -267,7 +292,6 @@ public class CompanionAI : MonoBehaviour
 
     private void UpdateDefense()
     {
-        Debug.Log("Companion: Defending position!");
         
         if (currentTarget == null || !currentTarget.gameObject.activeSelf)
         {
@@ -307,7 +331,6 @@ public class CompanionAI : MonoBehaviour
 
     private IEnumerator PerformAttack()
     {
-        // Анимация атаки (раскомментируйте если есть аниматор)
         // if (animator != null) animator.SetTrigger("Attack");
 
         if (currentTarget != null && currentTarget.gameObject.activeSelf)
@@ -315,7 +338,6 @@ public class CompanionAI : MonoBehaviour
             EnemyHealth zombieHealth = currentTarget.GetComponent<EnemyHealth>();
             if (zombieHealth != null)
             {
-                Debug.Log("Companion attacking zombie!");
                 zombieHealth.ApplyDamage(attackDamage);
 
                 if (zombieHealth.currentHealth <= 0)
@@ -477,20 +499,6 @@ public class CompanionAI : MonoBehaviour
 
         if (!wasStopped && currentState != CompanionState.Staying)
             agent.isStopped = false;
-    }
-
-    bool IsObstacleBetween()
-    {
-        if (obstacleLayers.value == 0 || player == null) return false;
-
-        Vector3 direction = player.transform.position - transform.position;
-        float distance = Vector3.Distance(transform.position, player.transform.position);
-
-        if (Physics.Raycast(transform.position, direction, out RaycastHit hit, distance, obstacleLayers))
-        {
-            return hit.transform != player.transform;
-        }
-        return false;
     }
 
     void OnDrawGizmosSelected()

@@ -8,9 +8,9 @@ public class CompanionHealth : MonoBehaviour, IEntity
 	public float deathAnimationTime = 2f;
 	public GameObject deathEffect;
 	public GameObject zombiePrefab; // Префаб зомби для замены
+    public bool isDead = false;
 
-	private CompanionAI companionAI;
-	private bool isDead = false;
+    private CompanionAI companionAI;
 
 	void Start()
 	{
