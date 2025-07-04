@@ -15,9 +15,9 @@ public class CompanionAI : MonoBehaviour
     }
 
     [Header("Follow Settings")]
-    public float followDistance = 5f;
-    public float stopDistance = 15f;
-    public float minFollowDistance = 0.5f;
+    public float followDistance = 10f;
+    public float stopDistance = 20f;
+    public float minFollowDistance = 3f;
     public float movementSpeed = 5f;
     public float rotationSpeed = 4f;
 
@@ -69,11 +69,6 @@ public class CompanionAI : MonoBehaviour
         agent.angularSpeed = rotationSpeed;
         agent.stoppingDistance = minFollowDistance;
         agent.autoBraking = true;
-    }
-
-    void FixedUpdate()
-    {
-        ApplyMinDistanceEnforcement();
     }
 
     void Update()
@@ -374,7 +369,7 @@ public class CompanionAI : MonoBehaviour
         {
             agent.SetDestination(player.transform.position);
         }
-        else if (adjustedDistance <= minFollowDistance)
+        else if (adjustedDistance <= followDistance)
         {
             if (agent.velocity.sqrMagnitude > 0.1f)
             {
@@ -388,40 +383,6 @@ public class CompanionAI : MonoBehaviour
         else
         {
             agent.isStopped = true;
-        }
-    }
-
-    private void ApplyMinDistanceEnforcement()
-    {
-        Collider[] colliders = Physics.OverlapSphere(transform.position, minDistance);
-
-        foreach (Collider col in colliders)
-        {
-            if (col.transform == transform || col.isTrigger) continue;
-            
-            float requiredDistance = minDistance;
-            if (col.CompareTag("Player"))
-            {
-                requiredDistance = minFollowDistance;
-            }
-
-            Vector3 direction = (transform.position - col.transform.position).normalized;
-            float currentDistance = Vector3.Distance(transform.position, col.transform.position);
-
-            if (currentDistance < requiredDistance)
-            {
-                float overlap = requiredDistance - currentDistance;
-                Vector3 moveVector = direction * overlap;
-
-                if (agent.enabled && agent.isOnNavMesh)
-                {
-                    agent.Move(moveVector);
-                }
-                else
-                {
-                    transform.position += moveVector;
-                }
-            }
         }
     }
 
@@ -442,7 +403,7 @@ public class CompanionAI : MonoBehaviour
 
     private void HandleCollision(Collision collision)
     {
-        StartCoroutine(StopTemporarily(0.3f));
+        StartCoroutine(StopTemporarily(1f));
 
         Vector3 direction = (transform.position - collision.transform.position).normalized;
         float safeDistance = minDistance + 0.1f;
