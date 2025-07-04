@@ -39,10 +39,10 @@ public class CompanionAI : MonoBehaviour
     [Header("Zombie Reaction Settings")]
     public float zombieDetectionRadius = 15f;
     public float reactionCooldown = 1f;
-    public float shootingChance = 0f;
+    public float shootingChance = 1f;
 
     [Header("Melee Attack Settings")]
-    public float attackDistance = 1f;
+    public float attackDistance = 2f;
     public float attackRate = 1f;
     public float attackDuration = 1f;
     public float chaseSpeed = 7f;
@@ -268,7 +268,7 @@ public class CompanionAI : MonoBehaviour
     private void UpdateDefense()
     {
         Debug.Log("Companion: Defending position!");
-        // Если цель уничтожена или пропала
+        
         if (currentTarget == null || !currentTarget.gameObject.activeSelf)
         {
             EndReaction();
@@ -277,17 +277,16 @@ public class CompanionAI : MonoBehaviour
 
         float distanceToTarget = Vector3.Distance(transform.position, currentTarget.position);
 
-        // Если достигли дистанции атаки
         if (distanceToTarget <= attackDistance)
         {
             agent.isStopped = true;
 
             // Поворот к цели
             Vector3 direction = (currentTarget.position - transform.position).normalized;
-            Quaternion lookRotation = Quaternion.LookRotation(new Vector3(direction.x, 0, direction.z));
+            direction.y = 0; // Игнорируем разницу по высоте
+            Quaternion lookRotation = Quaternion.LookRotation(direction);
             transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, Time.deltaTime * rotationSpeed);
 
-            // Атака
             if (Time.time >= nextAttackTime)
             {
                 StartCoroutine(PerformAttack());
@@ -296,9 +295,13 @@ public class CompanionAI : MonoBehaviour
         }
         else
         {
-            // Продолжаем преследование
             agent.isStopped = false;
             agent.SetDestination(currentTarget.position);
+            
+            if (distanceToTarget > zombieDetectionRadius * 1.5f)
+            {
+                EndReaction();
+            }
         }
     }
 
@@ -307,23 +310,25 @@ public class CompanionAI : MonoBehaviour
         // Анимация атаки (раскомментируйте если есть аниматор)
         // if (animator != null) animator.SetTrigger("Attack");
 
-        Debug.Log("Companion attacking zombie!");
-
-        // Наносим урон
-        if (currentTarget != null)
+        if (currentTarget != null && currentTarget.gameObject.activeSelf)
         {
             EnemyHealth zombieHealth = currentTarget.GetComponent<EnemyHealth>();
             if (zombieHealth != null)
             {
+                Debug.Log("Companion attacking zombie!");
                 zombieHealth.ApplyDamage(attackDamage);
+
+                if (zombieHealth.currentHealth <= 0)
+                {
+                    EndReaction();
+                    yield break;
+                }
             }
         }
 
-        // Ждем завершения атаки
         yield return new WaitForSeconds(attackDuration);
 
-        // Проверяем, нужно ли продолжать атаку
-        if (currentTarget == null ||
+        if (currentTarget == null || !currentTarget.gameObject.activeSelf ||
             Vector3.Distance(transform.position, currentTarget.position) > attackDistance)
         {
             EndReaction();
@@ -335,7 +340,10 @@ public class CompanionAI : MonoBehaviour
         isReactingToZombie = false;
         currentState = stateBeforeReaction;
         agent.speed = movementSpeed;
-        currentTarget = null;
+        if (currentTarget == null || !currentTarget.gameObject.activeSelf)
+        {
+            currentTarget = null;
+        }
     }
 
     private void FindWorkshop()
