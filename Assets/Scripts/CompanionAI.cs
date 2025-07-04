@@ -38,22 +38,29 @@ public class CompanionAI : MonoBehaviour
 
     [Header("Zombie Reaction Settings")]
     public float zombieDetectionRadius = 15f;
-    public float shootingChance = 0.25f;
     public float reactionCooldown = 1f;
-    public GameObject projectilePrefab;
-    public Transform shootPoint;
+    public float shootingChance = 0f;
+
+    [Header("Melee Attack Settings")]
+    public float attackDistance = 1f;
+    public float attackRate = 1f;
+    public float attackDuration = 1f;
+    public float chaseSpeed = 7f;
+    public float attackDamage = 1000f;
 
     private CompanionState currentState = CompanionState.Staying;
     private CompanionState stateBeforeReaction;
     private float lastCheckTime;
     private float lastCollisionTime;
     private float lastReactionTime;
+    private float nextAttackTime;
     private bool workshopDetected = false;
     private bool isManualStay = false;
     private bool isReactingToZombie = false;
     private SC_TPSController player;
     private NavMeshAgent agent;
     private CompanionHealth health;
+    private Transform currentTarget;
     //private Animator animator;
 
     void Start()
@@ -61,6 +68,8 @@ public class CompanionAI : MonoBehaviour
         FindWorkshop();
         player = FindObjectOfType<SC_TPSController>();
         health = GetComponent<CompanionHealth>();
+        nextAttackTime = 0f;
+        currentTarget = null;
 
         agent = GetComponent<NavMeshAgent>();
         //animator = GetComponent<Animator>();
@@ -103,7 +112,6 @@ public class CompanionAI : MonoBehaviour
                 UpdateDefense();
                 break;
             case CompanionState.Getaway:
-                UpdateGetaway();
                 break;
         }
     }
@@ -179,13 +187,20 @@ public class CompanionAI : MonoBehaviour
         {
             isReactingToZombie = true;
             lastReactionTime = Time.time;
-
             stateBeforeReaction = currentState;
 
             bool defend = Random.Range(0f, 1f) <= shootingChance;
-            currentState = defend ? CompanionState.Defense : CompanionState.Getaway;
-
-            StartCoroutine(defend ? DefendAgainstZombie(nearestZombie) : EscapeFromZombie(nearestZombie));
+            if (defend)
+            {
+                currentTarget = nearestZombie;
+                agent.speed = chaseSpeed;
+                currentState = CompanionState.Defense;
+            }
+            else
+            {
+                currentState = CompanionState.Getaway;
+                StartCoroutine(EscapeFromZombie(nearestZombie));
+            }
         }
     }
 
@@ -211,32 +226,6 @@ public class CompanionAI : MonoBehaviour
             }
         }
         return nearest;
-    }
-
-    private IEnumerator DefendAgainstZombie(Transform zombieTarget)
-    {
-        Debug.Log("Companion: Defending position!");
-        //if (animator != null) animator.SetTrigger("Shoot");
-
-        if (zombieTarget != null)
-        {
-            // Поворот к цели
-            Vector3 direction = (zombieTarget.position - transform.position).normalized;
-            Quaternion lookRotation = Quaternion.LookRotation(new Vector3(direction.x, 0, direction.z));
-            transform.rotation = lookRotation;
-
-            if (projectilePrefab && shootPoint)
-            {
-                Instantiate(projectilePrefab, shootPoint.position, lookRotation);
-            }
-        }
-
-        yield return new WaitForSeconds(1f);
-
-        if (this == null) yield break;
-
-        isReactingToZombie = false;
-        currentState = stateBeforeReaction;
     }
 
     private IEnumerator EscapeFromZombie(Transform zombieTarget)
@@ -271,23 +260,82 @@ public class CompanionAI : MonoBehaviour
         currentState = stateBeforeReaction;
     }
 
-    private void UpdateDefense()
-    {
-        agent.isStopped = true;
-
-        //Добавляем поворот к цели
-        Transform nearestZombie = FindNearestZombieInRadius(zombieDetectionRadius);
-        if (nearestZombie != null)
-        {
-            Vector3 direction = (nearestZombie.position - transform.position).normalized;
-            Quaternion lookRotation = Quaternion.LookRotation(new Vector3(direction.x, 0, direction.z));
-            transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, Time.deltaTime * rotationSpeed);
-        }
-    }
-
     private void UpdateGetaway()
     {
 
+    }
+
+    private void UpdateDefense()
+    {
+        Debug.Log("Companion: Defending position!");
+        // Если цель уничтожена или пропала
+        if (currentTarget == null || !currentTarget.gameObject.activeSelf)
+        {
+            EndReaction();
+            return;
+        }
+
+        float distanceToTarget = Vector3.Distance(transform.position, currentTarget.position);
+
+        // Если достигли дистанции атаки
+        if (distanceToTarget <= attackDistance)
+        {
+            agent.isStopped = true;
+
+            // Поворот к цели
+            Vector3 direction = (currentTarget.position - transform.position).normalized;
+            Quaternion lookRotation = Quaternion.LookRotation(new Vector3(direction.x, 0, direction.z));
+            transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, Time.deltaTime * rotationSpeed);
+
+            // Атака
+            if (Time.time >= nextAttackTime)
+            {
+                StartCoroutine(PerformAttack());
+                nextAttackTime = Time.time + 1f / attackRate;
+            }
+        }
+        else
+        {
+            // Продолжаем преследование
+            agent.isStopped = false;
+            agent.SetDestination(currentTarget.position);
+        }
+    }
+
+    private IEnumerator PerformAttack()
+    {
+        // Анимация атаки (раскомментируйте если есть аниматор)
+        // if (animator != null) animator.SetTrigger("Attack");
+
+        Debug.Log("Companion attacking zombie!");
+
+        // Наносим урон
+        if (currentTarget != null)
+        {
+            EnemyHealth zombieHealth = currentTarget.GetComponent<EnemyHealth>();
+            if (zombieHealth != null)
+            {
+                zombieHealth.ApplyDamage(attackDamage);
+            }
+        }
+
+        // Ждем завершения атаки
+        yield return new WaitForSeconds(attackDuration);
+
+        // Проверяем, нужно ли продолжать атаку
+        if (currentTarget == null ||
+            Vector3.Distance(transform.position, currentTarget.position) > attackDistance)
+        {
+            EndReaction();
+        }
+    }
+
+    private void EndReaction()
+    {
+        isReactingToZombie = false;
+        currentState = stateBeforeReaction;
+        agent.speed = movementSpeed;
+        currentTarget = null;
     }
 
     private void FindWorkshop()
