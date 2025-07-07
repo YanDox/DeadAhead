@@ -154,7 +154,7 @@ MonoBehaviour:
   reactionCooldown: 1
   zombieLayerMask:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 8
   attackDistance: 1
   attackRate: 1
   attackDuration: 2

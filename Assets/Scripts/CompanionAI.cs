@@ -13,6 +13,8 @@ public class CompanionAI : MonoBehaviour
         Getaway
     }
 
+# region Settings
+
     [Header("Follow Settings")]
     public float followDistance = 10f;
     public float stopDistance = 20f;
@@ -37,11 +39,11 @@ public class CompanionAI : MonoBehaviour
 
     [Header("Zombie Reaction Settings")]
     public float zombieDetectionRadius = 15f;
-    public float reactionCooldown = 1f;
+    public float reactionCooldown = 0.5f;
     public LayerMask zombieLayerMask;
 
     [Header("Melee Attack Settings")]
-    public float attackDistance = 1f;
+    public float attackDistance = 2f;
     public float attackRate = 1f;
     public float attackDuration = 2f;
     public float chaseSpeed = 7f;
@@ -60,10 +62,18 @@ public class CompanionAI : MonoBehaviour
     private NavMeshAgent agent;
     private CompanionHealth health;
     private Transform currentTarget;
+    private Coroutine escapeRoutine;
+    private Coroutine nothingRoutine;
+    private Coroutine attackRoutine;
     //private Animator animator;
+
+    #endregion
+
+#region Start
 
     void Start()
     {
+        StartCoroutine(ZombieCheckRoutine());
         FindWorkshop();
         player = FindObjectOfType<SC_TPSController>();
         health = GetComponent<CompanionHealth>();
@@ -79,6 +89,10 @@ public class CompanionAI : MonoBehaviour
         agent.autoBraking = true;
     }
 
+#endregion
+
+#region Update
+
     void Update()
     {
         CheckWorkshopDetection();
@@ -87,11 +101,6 @@ public class CompanionAI : MonoBehaviour
         {
             agent.isStopped = true;
             return;
-        }
-
-        if (currentState != CompanionState.GoingToWorkshop)
-        {
-            StartCoroutine(ZombieCheckRoutine());
         }
 
         if (!isReactingToZombie && Input.GetKeyDown(stayToggleKey))
@@ -120,20 +129,25 @@ public class CompanionAI : MonoBehaviour
         }
     }
 
+    #endregion
+
+#region Staying
     private void UpdateStaying()
     {
         agent.isStopped = true;
 
-        if (!isManualStay && player != null &&
+        if (!isManualStay && player != null && player.transform != null &&
             Vector3.Distance(transform.position, player.transform.position) <= stopDistance)
         {
             currentState = CompanionState.Following;
         }
     }
+#endregion
 
+#region Following
     private void UpdateFollowing()
     {
-        if (player != null && Vector3.Distance(transform.position, player.transform.position) > stopDistance)
+        if (player != null && player.transform != null && Vector3.Distance(transform.position, player.transform.position) > stopDistance)
         {
             currentState = CompanionState.Staying;
             return;
@@ -152,31 +166,229 @@ public class CompanionAI : MonoBehaviour
         }
     }
 
-    private void ToggleFollowMode()
+    void CheckDistanceToPlayer()
     {
-        isManualStay = !isManualStay;
+        if (player == null) return;
 
-        if (isReactingToZombie || health.isDead) return;
+        float distanceToPlayer = Vector3.Distance(transform.position, player.transform.position);
+        float adjustedDistance = distanceToPlayer - minFollowDistance;
 
-        if (isManualStay)
+        if (distanceToPlayer > minFollowDistance && distanceToPlayer <= followDistance)
         {
-            currentState = CompanionState.Staying;
+            agent.isStopped = false;
+            Vector3 direction = (transform.position - player.transform.position).normalized;
+            Vector3 targetPosition = player.transform.position + direction * minFollowDistance;
+
+            // Проверяем доступность позиции
+            NavMeshHit hit;
+            if (NavMesh.SamplePosition(targetPosition, out hit, 1.0f, NavMesh.AllAreas))
+            {
+                agent.SetDestination(hit.position);
+            }
+            else
+            {
+                agent.SetDestination(player.transform.position);
+            }
+        }
+        else if (distanceToPlayer > followDistance && distanceToPlayer <= stopDistance)
+        {
+            agent.SetDestination(player.transform.position);
+        }
+        else if (adjustedDistance <= followDistance)
+        {
+            if (agent.velocity.sqrMagnitude > 0.1f)
+            {
+                agent.velocity *= 0.85f;
+            }
+            else
+            {
+                agent.isStopped = true;
+            }
         }
         else
         {
-            if (player != null)
-            {
-                float distance = Vector3.Distance(transform.position, player.transform.position);
+            agent.isStopped = true;
+        }
+    }
+#endregion
 
-                if (distance <= followDistance)
+#region Workshop
+    private void UpdateGoingToWorkshop()
+    {
+        if (targetStayPoint == null)
+        {
+            currentState = CompanionState.Following;
+            return;
+        }
+
+        if (Vector3.Distance(transform.position, targetStayPoint.position) <= stayPointRadius)
+        {
+            currentState = CompanionState.Staying;
+            return;
+        }
+
+        agent.isStopped = false;
+        agent.SetDestination(targetStayPoint.position);
+    }
+
+    private void FindWorkshop()
+    {
+        if (targetStayPoint == null)
+        {
+            GameObject workshopObj = GameObject.FindGameObjectWithTag("Workshop");
+            if (workshopObj != null)
+            {
+                targetStayPoint = workshopObj.transform;
+            }
+        }
+    }
+
+    private void CheckWorkshopDetection()
+    {
+        if (targetStayPoint == null) return;
+
+        float distance = Vector3.Distance(transform.position, targetStayPoint.position);
+        workshopDetected = distance <= detectionRadius;
+
+        if (workshopDetected && currentState != CompanionState.Staying &&
+        currentState != CompanionState.GoingToWorkshop &&
+        !isReactingToZombie)
+        {
+            currentState = CompanionState.GoingToWorkshop;
+        }
+    }
+
+    private bool ShouldAutoStay()
+    {
+        return workshopDetected && Vector3.Distance(transform.position, targetStayPoint.position) <= stayPointRadius;
+    }
+#endregion
+
+#region Defense
+    private void UpdateDefense()
+    {
+        if (currentTarget == null || !currentTarget.gameObject.activeInHierarchy)
+        {
+            EndReaction();
+            return;
+        }
+
+        float distanceToTarget = Vector3.Distance(transform.position, currentTarget.position);
+
+        if (distanceToTarget <= attackDistance)
+        {
+            agent.isStopped = true;
+
+            // Поворот к цели
+            Vector3 direction = (currentTarget.position - transform.position).normalized;
+            direction.y = 0; // Игнорируем разницу по высоте
+            Quaternion lookRotation = Quaternion.LookRotation(direction);
+            transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, Time.deltaTime * rotationSpeed);
+
+            if (Time.time >= nextAttackTime)
+            {
+                if (attackRoutine != null) StopCoroutine(attackRoutine);
+                attackRoutine = StartCoroutine(PerformAttack());
+                nextAttackTime = Time.time + 1f / attackRate;
+            }
+        }
+        else
+        {
+            agent.isStopped = false;
+            agent.SetDestination(currentTarget.position);
+
+            if (distanceToTarget > zombieDetectionRadius * 1.5f)
+            {
+                EndReaction();
+            }
+        }
+    }
+
+    private IEnumerator PerformAttack()
+    {
+        try
+        {
+            // if (animator != null) animator.SetTrigger("Attack");
+
+            if (currentTarget != null && currentTarget.gameObject.activeInHierarchy)
+            {
+                EnemyHealth zombieHealth = currentTarget.GetComponent<EnemyHealth>();
+                if (zombieHealth != null)
                 {
-                    currentState = CompanionState.Following;
-                }
-                else
-                {
-                    currentState = CompanionState.Staying;
+                    zombieHealth.ApplyDamage(attackDamage);
+
+                    if (zombieHealth.currentHealth <= 0)
+                    {
+                        EndReaction();
+                        yield break;
+                    }
                 }
             }
+
+            yield return new WaitForSeconds(attackDuration);
+
+            if (currentTarget == null || !currentTarget.gameObject.activeInHierarchy ||
+                Vector3.Distance(transform.position, currentTarget.position) > attackDistance)
+            {
+                EndReaction();
+            }
+        }
+
+        finally
+        {
+            attackRoutine = null;
+        }
+    }
+
+    #endregion
+
+#region Getaway
+    private IEnumerator EscapeFromZombie(Transform zombieTarget)
+    {
+        if (zombieTarget == null)
+        {
+            isReactingToZombie = false;
+            yield break;
+        }
+
+        // Расчет точки побега
+        Vector3 escapeDirection = zombieTarget != null
+            ? (transform.position - zombieTarget.position).normalized
+            : -transform.forward;
+
+        Vector3 desiredEscapePoint = transform.position + escapeDirection * stopDistance * 2;
+
+        Vector3 finalEscapePoint = desiredEscapePoint;
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(desiredEscapePoint, out hit, 5.0f, NavMesh.AllAreas))
+        {
+            finalEscapePoint = hit.position;
+        }
+
+        agent.SetDestination(finalEscapePoint);
+        agent.isStopped = false;
+
+        float escapeTimer = 0f;
+        while ((agent.pathPending || agent.remainingDistance > 0.5f) && escapeTimer < 5f)
+        {
+            escapeTimer += Time.deltaTime;
+            yield return null;
+        }
+
+        isReactingToZombie = false;
+        currentState = stateBeforeReaction;
+        escapeRoutine = null;
+    }
+#endregion
+
+#region ZombieReaction
+    IEnumerator ZombieCheckRoutine()
+    {
+        while (true)
+        {
+            if (currentState != CompanionState.GoingToWorkshop)
+                CheckZombieThreat();
+            yield return new WaitForSeconds(reactionCooldown);
         }
     }
 
@@ -184,6 +396,12 @@ public class CompanionAI : MonoBehaviour
     {
         if (Time.time - lastReactionTime < reactionCooldown || isReactingToZombie)
             return;
+
+        if (health.isDead)
+        {
+            agent.isStopped = true;
+            return;
+        }
 
         Transform nearestZombie = FindNearestZombieInRadius(zombieDetectionRadius);
 
@@ -197,48 +415,22 @@ public class CompanionAI : MonoBehaviour
 
             if (reactionChoice <= 0.25f) // 25% - оборона
             {
-                StartDefense(nearestZombie);
                 Debug.Log("чел пиздится");
+                StartDefense(nearestZombie);
             }
             else if (reactionChoice <= 0.75f) // 50% - побег
             {
-                StartGetaway(nearestZombie);
                 Debug.Log("чел бежит");
+                StartGetaway(nearestZombie);
             }
             else
             {
                 Debug.Log("чел нихуя не делает");
+                if (nothingRoutine != null) StopCoroutine(nothingRoutine);
+                nothingRoutine = StartCoroutine(StartNothing(nearestZombie));
             }
             // else 25% - остаемся в текущем состоянии (ничего не делаем)
         }
-    }
-
-    IEnumerator ZombieCheckRoutine()
-    {
-        while (true)
-        {
-            if (currentState != CompanionState.GoingToWorkshop)
-                CheckZombieThreat();
-            yield return new WaitForSeconds(reactionCooldown);
-        }
-    }
-
-    private void StartDefense(Transform zombie)
-    {
-        isReactingToZombie = true;
-        stateBeforeReaction = currentState;
-
-        currentTarget = zombie;
-        agent.speed = chaseSpeed;
-        currentState = CompanionState.Defense;
-    }
-
-    private void StartGetaway(Transform zombie)
-    {
-        isReactingToZombie = true;
-        stateBeforeReaction = currentState;
-        currentState = CompanionState.Getaway;
-        StartCoroutine(EscapeFromZombie(zombie));
     }
 
     private Transform FindNearestZombieInRadius(float radius)
@@ -285,106 +477,56 @@ public class CompanionAI : MonoBehaviour
         );
     }
 
-    private IEnumerator EscapeFromZombie(Transform zombieTarget)
+    private void StartDefense(Transform zombie)
     {
-        if (zombieTarget == null)
+        isReactingToZombie = true;
+        stateBeforeReaction = currentState;
+
+        currentTarget = zombie;
+        agent.speed = chaseSpeed;
+        currentState = CompanionState.Defense;
+
+        if (attackRoutine != null)
+        {
+            StopCoroutine(attackRoutine);
+        }
+    }
+
+    private void StartGetaway(Transform zombie)
+    {
+        isReactingToZombie = true;
+        stateBeforeReaction = currentState;
+        currentState = CompanionState.Getaway;
+
+        if (escapeRoutine != null)
+        {
+            StopCoroutine(escapeRoutine);
+        }
+
+        escapeRoutine = StartCoroutine(EscapeFromZombie(zombie));
+    }
+
+    private IEnumerator StartNothing(Transform zombie)
+    {
+        isReactingToZombie = true;
+        currentTarget = zombie;
+
+        if (zombie == null)
         {
             isReactingToZombie = false;
             yield break;
         }
 
-        // Расчет точки побега
-        Vector3 escapeDirection = zombieTarget != null
-            ? (transform.position - zombieTarget.position).normalized
-            : -transform.forward;
+        Transform originalZombie = zombie;
 
-        Vector3 desiredEscapePoint = transform.position + escapeDirection * stopDistance * 2;
-
-        Vector3 finalEscapePoint = desiredEscapePoint;
-        NavMeshHit hit;
-        if (NavMesh.SamplePosition(desiredEscapePoint, out hit, 5.0f, NavMesh.AllAreas))
+        while (originalZombie != null &&
+               originalZombie.gameObject.activeInHierarchy &&
+               Vector3.Distance(transform.position, originalZombie.position) <= zombieDetectionRadius)
         {
-            finalEscapePoint = hit.position;
+            yield return new WaitForSeconds(0.5f);
         }
-
-        agent.SetDestination(finalEscapePoint);
-        agent.isStopped = false;
-
-        float escapeTimer = 0f;
-        while ((agent.pathPending || agent.remainingDistance > 0.5f) && escapeTimer < 5f)
-        {
-            escapeTimer += Time.deltaTime;
-            yield return null;
-        }
-
-        isReactingToZombie = false;
-        currentState = stateBeforeReaction;
-    }
-
-    private void UpdateDefense()
-    {
-        if (currentTarget == null || !currentTarget.gameObject.activeInHierarchy)
-        {
-            EndReaction();
-            return;
-        }
-
-        float distanceToTarget = Vector3.Distance(transform.position, currentTarget.position);
-
-        if (distanceToTarget <= attackDistance)
-        {
-            agent.isStopped = true;
-
-            // Поворот к цели
-            Vector3 direction = (currentTarget.position - transform.position).normalized;
-            direction.y = 0; // Игнорируем разницу по высоте
-            Quaternion lookRotation = Quaternion.LookRotation(direction);
-            transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, Time.deltaTime * rotationSpeed);
-
-            if (Time.time >= nextAttackTime)
-            {
-                StartCoroutine(PerformAttack());
-                nextAttackTime = Time.time + 1f / attackRate;
-            }
-        }
-        else
-        {
-            agent.isStopped = false;
-            agent.SetDestination(currentTarget.position);
-            
-            if (distanceToTarget > zombieDetectionRadius * 1.5f)
-            {
-                EndReaction();
-            }
-        }
-    }
-
-    private IEnumerator PerformAttack()
-    {
-        // if (animator != null) animator.SetTrigger("Attack");
-
-        if (currentTarget != null && currentTarget.gameObject.activeInHierarchy)
-        {
-            EnemyHealth zombieHealth = currentTarget.GetComponent<EnemyHealth>();
-            if (zombieHealth != null)
-            {
-                zombieHealth.ApplyDamage(attackDamage);
-
-                if (zombieHealth.currentHealth <= 0)
-                {
-                    EndReaction();
-                    yield break;
-                }
-            }
-        }
-
-        yield return new WaitForSeconds(attackDuration);
-
-        if (currentTarget == null || !currentTarget.gameObject.activeInHierarchy ||
-            Vector3.Distance(transform.position, currentTarget.position) > attackDistance)
-        {
-            EndReaction();
-        }
+        EndReaction();
+        nothingRoutine = null;
     }
 
     private void EndReaction()
@@ -397,100 +539,34 @@ public class CompanionAI : MonoBehaviour
             currentTarget = null;
         }
     }
+    #endregion
 
-    private void FindWorkshop()
+#region Utils
+    private void ToggleFollowMode()
     {
-        if (targetStayPoint == null)
-        {
-            GameObject workshopObj = GameObject.FindGameObjectWithTag("Workshop");
-            if (workshopObj != null)
-            {
-                targetStayPoint = workshopObj.transform;
-            }
-        }
-    }
+        isManualStay = !isManualStay;
 
-    private void UpdateGoingToWorkshop()
-    {
-        if (targetStayPoint == null)
-        {
-            currentState = CompanionState.Following;
-            return;
-        }
+        if (isReactingToZombie || health.isDead) return;
 
-        if (Vector3.Distance(transform.position, targetStayPoint.position) <= stayPointRadius)
+        if (isManualStay)
         {
             currentState = CompanionState.Staying;
-            return;
-        }
-
-        agent.isStopped = false;
-        agent.SetDestination(targetStayPoint.position);
-    }
-
-
-    private void CheckWorkshopDetection()
-    {
-        if (targetStayPoint == null) return;
-
-        float distance = Vector3.Distance(transform.position, targetStayPoint.position);
-        workshopDetected = distance <= detectionRadius;
-
-        if (workshopDetected && currentState != CompanionState.Staying &&
-        currentState != CompanionState.GoingToWorkshop &&
-        !isReactingToZombie)
-        {
-            currentState = CompanionState.GoingToWorkshop;
-        }
-    }
-
-    private bool ShouldAutoStay()
-    {
-        return workshopDetected && Vector3.Distance(transform.position, targetStayPoint.position) <= stayPointRadius;
-    }
-
-    void CheckDistanceToPlayer()
-    {
-        if (player == null) return;
-
-        float distanceToPlayer = Vector3.Distance(transform.position, player.transform.position);
-        float adjustedDistance = distanceToPlayer - minFollowDistance;
-
-        if (distanceToPlayer > minFollowDistance && distanceToPlayer <= followDistance)
-        {
-            agent.isStopped = false;
-            Vector3 direction = (transform.position - player.transform.position).normalized;
-            Vector3 targetPosition = player.transform.position + direction * minFollowDistance;
-
-            // Проверяем доступность позиции
-            NavMeshHit hit;
-            if (NavMesh.SamplePosition(targetPosition, out hit, 1.0f, NavMesh.AllAreas))
-            {
-                agent.SetDestination(hit.position);
-            }
-            else
-            {
-                agent.SetDestination(player.transform.position);
-            }
-        }
-        else if (distanceToPlayer > followDistance && distanceToPlayer <= stopDistance)
-        {
-            agent.SetDestination(player.transform.position);
-        }
-        else if (adjustedDistance <= followDistance)
-        {
-            if (agent.velocity.sqrMagnitude > 0.1f)
-            {
-                agent.velocity *= 0.85f;
-            }
-            else
-            {
-                agent.isStopped = true;
-            }
         }
         else
         {
-            agent.isStopped = true;
+            if (player != null)
+            {
+                float distance = Vector3.Distance(transform.position, player.transform.position);
+
+                if (distance <= followDistance)
+                {
+                    currentState = CompanionState.Following;
+                }
+                else
+                {
+                    currentState = CompanionState.Staying;
+                }
+            }
         }
     }
 
@@ -551,3 +627,4 @@ public class CompanionAI : MonoBehaviour
         Gizmos.DrawWireSphere(transform.position, zombieDetectionRadius);
     }
 }
+#endregion
