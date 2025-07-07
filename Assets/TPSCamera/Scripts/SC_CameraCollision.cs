@@ -1,157 +1,108 @@
 ﻿using UnityEngine;
 
+[RequireComponent(typeof(Camera))]
 public class SC_CameraCollision : MonoBehaviour
 {
 	[Header("References")]
-	public Transform referenceTransform;
+	public Transform playerTransform; // Ссылка на трансформ игрока
+	public Animator playerAnimator;  // Ссылка на аниматор игрока
+
+	[Header("Camera Settings")]
+	public float collisionOffset = 0.3f;
+	public float normalSpeed = 10f;
+	public float aimSpeed = 20f;
+	public float defaultDistance = 2f;
+	public Vector3 normalOffset = new Vector3(0, 1.6f, -2f);
+	public Vector3 aimOffset = new Vector3(0.5f, 1.4f, -1f);
+	public Vector3 coverOffset = new Vector3(0.3f, 0.7f, -0.8f);
+	public float aimFOV = 40f;
+	public float normalFOV = 60f;
+	public float transitionSpeed = 10f;
 
 	[Header("Collision Settings")]
-	public float collisionOffset = 0.3f;
-	public float cameraSpeed = 15f;
-	public float aimCameraSpeed = 20f;
+	public LayerMask collisionMask; // Маска для коллизий камеры
 
-	[Header("Aim Settings")]
-	public Vector3 defaultAimOffset = new Vector3(0.5f, -0.2f, -1f);
-	public Vector3 defaultLeftOffset = new Vector3(-0.5f, -0.2f, -1f);
-	public Vector3 coverAimOffset = new Vector3(0.3f, -0.1f, -0.8f);
-	public Vector3 coverLeftOffset = new Vector3(-0.3f, -0.1f, -0.8f);
-	public float aimFOV = 40f;
-	public float aimTransitionSpeed = 10f;
-	public KeyCode aimKey = KeyCode.Mouse1;
-	public KeyCode switchShoulderKey = KeyCode.Q;
+	public bool IsAiming { get; private set; }
 
-	[Header("Debug")]
-	[SerializeField] private bool _isAiming = false;
-	[SerializeField] private bool _isRightShoulder = true;
-
-	private Vector3 _defaultPos;
-	private Vector3 _directionNormalized;
-    private Vector3 _currentOffset;
-    private Transform _parentTransform;
-    private Camera _playerCamera;
-    private SC_TPSController _tpsController;
-    private float _defaultDistance;
-	private float _defaultFOV;
-	private float _currentFOV;
-
-	public bool IsAiming => _isAiming;
+	private Camera cam;
+	private Vector3 targetPosition;
+	private float currentDistance;
+	private bool isInCover;
+	private Vector3 smoothVelocity;
 
 	void Start()
 	{
-		InitializeCamera();
-		InitializeReferences();
-		SetupCursor();
-	}
+		cam = GetComponent<Camera>();
+		currentDistance = defaultDistance;
 
-	void InitializeCamera()
-	{
-		_defaultPos = transform.localPosition;
-		_directionNormalized = _defaultPos.normalized;
-		_parentTransform = transform.parent;
-		_defaultDistance = Vector3.Distance(_defaultPos, Vector3.zero);
-		_playerCamera = GetComponent<Camera>();
-		_defaultFOV = _playerCamera.fieldOfView;
-		_currentFOV = _defaultFOV;
-	}
-
-	void InitializeReferences()
-	{
-		if (referenceTransform == null)
-		{
-			Debug.LogError("Reference Transform is not assigned!", this);
-			return;
-		}
-
-		_tpsController = referenceTransform.GetComponent<SC_TPSController>();
-		if (_tpsController == null)
-		{
-			Debug.LogWarning("No SC_TPSController found on reference transform", this);
-		}
-	}
-
-	void SetupCursor()
-	{
-		Cursor.lockState = CursorLockMode.Locked;
-		Cursor.visible = false;
+		// Инициализация начальной позиции
+		transform.localPosition = normalOffset;
 	}
 
 	void LateUpdate()
 	{
-		HandleAimInput();
+		HandleAim();
+		HandleCover();
 		UpdateCameraPosition();
 		UpdateFieldOfView();
 	}
 
-	void HandleAimInput()
+	void HandleAim()
 	{
-		if (Input.GetKeyDown(aimKey))
+		if (Input.GetMouseButtonDown(1))
 		{
-			_isAiming = !_isAiming;
-			Debug.Log($"Aiming: {_isAiming}");
+			IsAiming = !IsAiming;
+			playerAnimator.SetBool("Aim", IsAiming);
 		}
+	}
 
-		if (Input.GetKeyDown(switchShoulderKey))
+	void HandleCover()
+	{
+		isInCover = playerAnimator != null && playerAnimator.GetBool("InCover");
+	}
+
+	void UpdateCameraPosition()
+	{
+		// Получаем целевую позицию камеры относительно игрока
+		Vector3 desiredPosition = playerTransform.TransformPoint(GetTargetOffset());
+
+		// Проверяем коллизии
+		CheckCollision(ref desiredPosition);
+
+		// Плавное перемещение камеры
+		float speed = IsAiming ? aimSpeed : normalSpeed;
+		transform.position = Vector3.SmoothDamp(transform.position, desiredPosition, ref smoothVelocity, 0.1f, speed);
+
+		// Камера всегда смотрит на игрока
+		transform.LookAt(playerTransform.position + Vector3.up * 1.6f);
+	}
+
+	Vector3 GetTargetOffset()
+	{
+		if (isInCover) return coverOffset;
+		return IsAiming ? aimOffset : normalOffset;
+	}
+
+	void CheckCollision(ref Vector3 targetPos)
+	{
+		Vector3 direction = targetPos - playerTransform.position;
+		float distance = direction.magnitude;
+		direction.Normalize();
+
+		if (Physics.SphereCast(playerTransform.position + Vector3.up * 0.5f, collisionOffset, direction, out RaycastHit hit, distance, collisionMask))
 		{
-			_isRightShoulder = !_isRightShoulder;
-			Debug.Log($"Shoulder: {(_isRightShoulder ? "Right" : "Left")}");
+			currentDistance = Mathf.Clamp(hit.distance - 0.2f, 0.5f, distance);
+			targetPos = playerTransform.position + direction * currentDistance;
+		}
+		else
+		{
+			currentDistance = distance;
 		}
 	}
 
 	void UpdateFieldOfView()
 	{
-		float targetFOV = _isAiming ? aimFOV : _defaultFOV;
-		_currentFOV = Mathf.Lerp(_currentFOV, targetFOV, aimTransitionSpeed * Time.deltaTime);
-		_playerCamera.fieldOfView = _currentFOV;
-	}
-
-	void UpdateCameraPosition()
-	{
-		Vector3 targetPos = GetTargetPosition();
-		Vector3 adjustedPos = AdjustForCollision(targetPos);
-
-		float speed = _isAiming ? aimCameraSpeed : cameraSpeed;
-		transform.localPosition = Vector3.Lerp(
-			transform.localPosition,
-			adjustedPos,
-			speed * Time.deltaTime
-		);
-	}
-
-	Vector3 GetTargetPosition()
-	{
-		if (!_isAiming) return _defaultPos;
-
-		bool inCover = _tpsController != null && _tpsController.IsInCover;
-
-		if (_isRightShoulder)
-		{
-			return inCover ? coverAimOffset : defaultAimOffset;
-		}
-		else
-		{
-			return inCover ? coverLeftOffset : defaultLeftOffset;
-		}
-	}
-
-	Vector3 AdjustForCollision(Vector3 targetPosition)
-	{
-		if (_parentTransform == null || referenceTransform == null)
-			return targetPosition;
-
-		Vector3 worldTargetPos = _parentTransform.TransformPoint(targetPosition);
-		Vector3 dir = worldTargetPos - referenceTransform.position;
-
-		if (Physics.SphereCast(
-			referenceTransform.position,
-			collisionOffset,
-			dir,
-			out RaycastHit hit,
-			_defaultDistance))
-		{
-			float adjustedDistance = Mathf.Max(0, hit.distance - collisionOffset);
-			return _directionNormalized * adjustedDistance;
-		}
-
-		return targetPosition;
+		float targetFOV = IsAiming ? aimFOV : normalFOV;
+		cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, targetFOV, transitionSpeed * Time.deltaTime);
 	}
 }
