@@ -134,20 +134,32 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dae06fdbf2235994c97e104f1794ecdb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  followDistance: 5
-  stopDistance: 10
-  minFollowDistance: 1
-  movementSpeed: 3
-  rotationSpeed: 3
+  followDistance: 10
+  stopDistance: 20
+  minFollowDistance: 3
+  movementSpeed: 5
+  rotationSpeed: 4
+  stayPointRadius: 7
+  detectionRadius: 15
   targetStayPoint: {fileID: 0}
-  stayPointRadius: 5
   stayToggleKey: 101
-  detectionRadius: 10
   checkInterval: 0.1
   obstacleLayers:
     serializedVersion: 2
     m_Bits: 0
   collisionCooldown: 0.5
+  repulsionForce: 5
+  minDistance: 0.35
+  zombieDetectionRadius: 15
+  reactionCooldown: 1
+  zombieLayerMask:
+    serializedVersion: 2
+    m_Bits: 0
+  attackDistance: 1
+  attackRate: 1
+  attackDuration: 2
+  chaseSpeed: 7
+  attackDamage: 1000
 --- !u!114 &8036740137638850914
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -165,3 +177,4 @@ MonoBehaviour:
   deathAnimationTime: 2
   deathEffect: {fileID: 0}
   zombiePrefab: {fileID: 9011643454315067480, guid: a89256f0f76db374d819814d82e7ddc6, type: 3}
+  isDead: 0

@@ -41,7 +41,7 @@ public class CompanionAI : MonoBehaviour
     public LayerMask zombieLayerMask;
 
     [Header("Melee Attack Settings")]
-    public float attackDistance = 2f;
+    public float attackDistance = 1f;
     public float attackRate = 1f;
     public float attackDuration = 2f;
     public float chaseSpeed = 7f;
@@ -198,10 +198,16 @@ public class CompanionAI : MonoBehaviour
             if (reactionChoice <= 0.25f) // 25% - оборона
             {
                 StartDefense(nearestZombie);
+                Debug.Log("чел пиздится");
             }
             else if (reactionChoice <= 0.75f) // 50% - побег
             {
                 StartGetaway(nearestZombie);
+                Debug.Log("чел бежит");
+            }
+            else
+            {
+                Debug.Log("чел нихуя не делает");
             }
             // else 25% - остаемся в текущем состоянии (ничего не делаем)
         }
@@ -317,7 +323,6 @@ public class CompanionAI : MonoBehaviour
 
     private void UpdateDefense()
     {
-        
         if (currentTarget == null || !currentTarget.gameObject.activeInHierarchy)
         {
             EndReaction();
