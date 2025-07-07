@@ -6,65 +6,89 @@ public class BusRepair : MonoBehaviour
 {
 	public int requiredParts = 5; // Всего нужно деталей
 	public int installedParts = 0; // Установлено деталей
-	public float repairTime = 3f; // Время установки одной детали
+	public float repairTime = 5f; // Время установки одной детали
 
 	private float repairProgress = 0f;
 	private bool isPlayerNear = false;
-	private Inventory playerInventory;
+    private bool isCompanionNear = false;
+    private Inventory playerInventory;
+    private CompanionInventory companionInventory;
 
-	void Update()
-	{
-		if (isPlayerNear && Input.GetKey(KeyCode.Y) && installedParts < requiredParts)
-		{
-			// Проверяем, есть ли у игрока деталь в инвентаре
-			if (playerInventory != null && playerInventory.items[Inventory.BUS_PART] > 0)
-			{
-				repairProgress += Time.deltaTime;
+    void Update()
+    {
+        // Ремонт игроком
+        if (isPlayerNear && Input.GetKey(KeyCode.Y)
+        {
+            TryRepair(playerInventory);
+        }
+        // Ремонт компаньоном
+        else if (isCompanionNear)
+        {
+            TryRepair(companionInventory);
+        }
+        else
+        {
+            repairProgress = 0f;
+        }
+    }
 
-				if (repairProgress >= repairTime)
-				{
-					repairProgress = 0f;
-					playerInventory.UseItem(Inventory.BUS_PART);
-					installedParts++;
-					Debug.Log($"Деталь установлена! Осталось: {requiredParts - installedParts}");
+    private void TryRepair(Inventory inventory)
+    {
+        if (installedParts < requiredParts && inventory != null && inventory.items[Inventory.BUS_PART] > 0)
+        {
+            repairProgress += Time.deltaTime;
+            if (repairProgress >= repairTime)
+            {
+                repairProgress = 0f;
+                inventory.UseItem(Inventory.BUS_PART);
+                installedParts++;
+                if (installedParts >= requiredParts)
+                {
+                    Debug.Log("Автобус отремонтирован!");
+                }
+            }
+        }
+    }
 
-					// Проверяем, полностью ли отремонтирован автобус
-					if (installedParts >= requiredParts)
-					{
-						Debug.Log("Автобус полностью отремонтирован!");
-						// Здесь можно добавить логику завершения ремонта
-					}
-				}
-			}
-			else
-			{
-				Debug.Log("У вас нет деталей для ремонта!");
-				repairProgress = 0f;
-			}
-		}
-		else
-		{
-			repairProgress = 0f;
-		}
-	}
+    private void TryRepair(CompanionInventory inventory)
+    {
+        if (installedParts < requiredParts && inventory != null && inventory.items[CompanionInventory.BUS_PART] > 0)
+        {
+            repairProgress += Time.deltaTime;
+            if (repairProgress >= repairTime)
+            {
+                repairProgress = 0f;
+                inventory.UseItem(CompanionInventory.BUS_PART);
+                installedParts++;
+            }
+        }
+    }
 
-	void OnTriggerEnter(Collider other)
-	{
-		if (other.CompareTag("Player"))
-		{
-			isPlayerNear = true;
-			playerInventory = other.GetComponent<Inventory>();
-			Debug.Log("Подойдите к автобусу и нажмите Y для ремонта");
-		}
-	}
+    void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            isPlayerNear = true;
+            playerInventory = other.GetComponent<Inventory>();
+        }
+        else if (other.CompareTag("Companion"))
+        {
+            isCompanionNear = true;
+            companionInventory = other.GetComponent<CompanionInventory>();
+        }
+    }
 
-	void OnTriggerExit(Collider other)
-	{
-		if (other.CompareTag("Player"))
-		{
-			isPlayerNear = false;
-			repairProgress = 0f;
-			Debug.Log("Вы вышли из зоны ремонта");
-		}
-	}
+    void OnTriggerExit(Collider other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            isPlayerNear = false;
+            repairProgress = 0f;
+        }
+        else if (other.CompareTag("Companion"))
+        {
+            isCompanionNear = false;
+            repairProgress = 0f;
+        }
+    }
 }

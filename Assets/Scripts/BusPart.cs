@@ -15,5 +15,13 @@ public class BusPart : MonoBehaviour
 				Debug.Log("Деталь автобуса подобрана!");
 			}
 		}
-	}
+        else if (other.CompareTag("Companion"))
+        {
+            CompanionInventory companionInventory = other.GetComponent<CompanionInventory>();
+            if (companionInventory != null && companionInventory.AddItem(CompanionInventory.BUS_PART))
+            {
+                Destroy(gameObject);
+            }
+        }
+    }
 }

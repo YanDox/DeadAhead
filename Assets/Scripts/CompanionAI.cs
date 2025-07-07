@@ -10,7 +10,9 @@ public class CompanionAI : MonoBehaviour
         Following,
         GoingToWorkshop,
         Defense,
-        Getaway
+        Getaway,
+        TakePart,
+        Repair
     }
 
 # region Settings
@@ -62,6 +64,8 @@ public class CompanionAI : MonoBehaviour
     private NavMeshAgent agent;
     private CompanionHealth health;
     private Transform currentTarget;
+    private Transform targetPart;
+    private Transform repairStation;
     private Coroutine escapeRoutine;
     private Coroutine nothingRoutine;
     private Coroutine attackRoutine;
@@ -77,6 +81,7 @@ public class CompanionAI : MonoBehaviour
         FindWorkshop();
         player = FindObjectOfType<SC_TPSController>();
         health = GetComponent<CompanionHealth>();
+        inventory = GetComponent<CompanionInventory>();
         nextAttackTime = 0f;
         currentTarget = null;
 
@@ -125,6 +130,12 @@ public class CompanionAI : MonoBehaviour
                 UpdateDefense();
                 break;
             case CompanionState.Getaway:
+                break;
+            case CompanionState.TakePart:
+                UpdateTakePart();
+                break;
+            case CompanionState.Repair:
+                UpdateRepair();
                 break;
         }
     }
@@ -537,6 +548,74 @@ public class CompanionAI : MonoBehaviour
         if (currentTarget == null || !currentTarget.gameObject.activeInHierarchy)
         {
             currentTarget = null;
+        }
+    }
+    #endregion
+
+#region TakePart
+    private void UpdateTakePart()
+    {
+        if (targetPart == null)
+        {
+            FindBusPart();
+            if (targetPart == null)
+            {
+                currentState = stateBeforeReaction;
+                return;
+            }
+        }
+
+        if (Vector3.Distance(transform.position, targetPart.position) <= 1.5f)
+        {
+            // Деталь подобрана автоматически через триггер
+            currentState = stateBeforeReaction;
+            return;
+        }
+
+        agent.isStopped = false;
+        agent.SetDestination(targetPart.position);
+    }
+
+    private void FindBusPart()
+    {
+        GameObject part = GameObject.FindGameObjectWithTag("BusPart");
+        if (part != null)
+        {
+            targetPart = part.transform;
+        }
+    }
+    #endregion
+
+#region Repair
+    private void UpdateRepair()
+    {
+        if (repairStation == null)
+        {
+            FindRepairStation();
+            if (repairStation == null)
+            {
+                currentState = stateBeforeReaction;
+                return;
+            }
+        }
+
+        if (Vector3.Distance(transform.position, repairStation.position) <= 2f)
+        {
+            // Ремонт происходит автоматически через триггер
+            currentState = stateBeforeReaction;
+            return;
+        }
+
+        agent.isStopped = false;
+        agent.SetDestination(repairStation.position);
+    }
+
+    private void FindRepairStation()
+    {
+        GameObject station = GameObject.FindGameObjectWithTag("Workshop");
+        if (station != null)
+        {
+            repairStation = station.transform;
         }
     }
     #endregion
