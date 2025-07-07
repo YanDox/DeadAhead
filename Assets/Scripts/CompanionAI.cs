@@ -51,6 +51,10 @@ public class CompanionAI : MonoBehaviour
     public float chaseSpeed = 7f;
     public float attackDamage = 1000f;
 
+    [Header("Repair Settings")]
+    public KeyCode transferPartKey = KeyCode.R;
+    public float transferDistance = 3f;
+
     private CompanionState currentState = CompanionState.Staying;
     private CompanionState stateBeforeReaction;
     private float lastCheckTime;
@@ -60,12 +64,15 @@ public class CompanionAI : MonoBehaviour
     private bool workshopDetected = false;
     private bool isManualStay = false;
     private bool isReactingToZombie = false;
-    private SC_TPSController player;
+    private bool hasBusPart = false;
     private NavMeshAgent agent;
+    private SC_TPSController player;
     private CompanionHealth health;
+    private CompanionInventory inventory;
+    private BusRepair currentWorkshop;
     private Transform currentTarget;
     private Transform targetPart;
-    private Transform repairStation;
+    private Transform workshop;
     private Coroutine escapeRoutine;
     private Coroutine nothingRoutine;
     private Coroutine attackRoutine;
@@ -112,6 +119,18 @@ public class CompanionAI : MonoBehaviour
         {
             ToggleFollowMode();
         }
+
+        if (Input.GetKeyDown(transferPartKey))
+        {
+            TryReceivePartFromPlayer();
+        }
+
+        if (workshopDetected && currentState != CompanionState.Repair && currentState != CompanionState.Defense && currentState != CompanionState.Getaway &&
+            inventory.items[CompanionInventory.BUS_PART] > 0)
+        {
+            StartRepairProcess();
+        }
+
 
         switch (currentState)
         {
@@ -555,67 +574,122 @@ public class CompanionAI : MonoBehaviour
 #region TakePart
     private void UpdateTakePart()
     {
-        if (targetPart == null)
-        {
-            FindBusPart();
-            if (targetPart == null)
-            {
-                currentState = stateBeforeReaction;
-                return;
-            }
-        }
-
-        if (Vector3.Distance(transform.position, targetPart.position) <= 1.5f)
-        {
-            // Деталь подобрана автоматически через триггер
-            currentState = stateBeforeReaction;
-            return;
-        }
-
-        agent.isStopped = false;
-        agent.SetDestination(targetPart.position);
-    }
-
-    private void FindBusPart()
-    {
-        GameObject part = GameObject.FindGameObjectWithTag("BusPart");
-        if (part != null)
-        {
-            targetPart = part.transform;
-        }
+        
     }
     #endregion
 
-#region Repair
+    #region Repair
+    private void StartRepairProcess()
+    {
+        stateBeforeReaction = currentState;
+
+        currentState = CompanionState.Repair;
+        Debug.Log("Компаньон начинает процесс ремонта в мастерской...");
+    }
+
     private void UpdateRepair()
     {
-        if (repairStation == null)
+        if (workshop == null)
         {
             FindRepairStation();
-            if (repairStation == null)
+            if (workshop == null)
             {
                 currentState = stateBeforeReaction;
                 return;
             }
         }
 
-        if (Vector3.Distance(transform.position, repairStation.position) <= 2f)
-        {
-            // Ремонт происходит автоматически через триггер
-            currentState = stateBeforeReaction;
-            return;
-        }
+        float distanceToBus = Vector3.Distance(transform.position, workshop.position);
 
-        agent.isStopped = false;
-        agent.SetDestination(repairStation.position);
+        if (distanceToBus <= 1f)
+        {
+            agent.isStopped = true;
+
+            Vector3 direction = (workshop.position - transform.position).normalized;
+            direction.y = 0;
+            Quaternion lookRotation = Quaternion.LookRotation(direction);
+            transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, Time.deltaTime * rotationSpeed);
+
+            StartRepairing();
+        }
+        else
+        {
+            agent.isStopped = false;
+            agent.SetDestination(workshop.position);
+            Debug.Log($"Компаньон ремонтирует автобус ({distanceToBus:F1} секунд)");
+        }
     }
 
     private void FindRepairStation()
     {
-        GameObject station = GameObject.FindGameObjectWithTag("Workshop");
-        if (station != null)
+        // Используем targetStayPoint как точку ремонта
+        if (targetStayPoint != null)
         {
-            repairStation = station.transform;
+            workshop = targetStayPoint;
+            currentWorkshop = targetStayPoint.GetComponent<BusRepair>();
+        }
+
+        if (workshop == null)
+        {
+            GameObject bus = GameObject.FindGameObjectWithTag("Workshop");
+            if (bus != null)
+            {
+                workshop = bus.transform;
+                currentWorkshop = bus.GetComponent<BusRepair>();
+            }
+        }
+    }
+
+    private void StartRepairing()
+    {
+        if (inventory.items[CompanionInventory.BUS_PART] > 0 && currentWorkshop != null)
+        {
+            if (currentWorkshop.InstallPart(inventory))
+            {
+                Debug.Log("Компаньон установил деталь");
+            }
+            else
+            {
+                Debug.Log("Сё");
+                currentState = stateBeforeReaction;
+            }
+        }
+        else
+        {
+            Debug.Log("Нема у нас запчастей");
+            currentState = stateBeforeReaction;
+        }
+    }
+
+
+    private void TryReceivePartFromPlayer()
+    {
+        if (player == null) return;
+
+        float distanceToPlayer = Vector3.Distance(transform.position, player.transform.position);
+        if (distanceToPlayer > transferDistance) return;
+
+        Inventory playerInventory = player.GetComponent<Inventory>();
+        if (playerInventory != null && playerInventory.items[Inventory.BUS_PART] > 0)
+        {
+            playerInventory.UseItem(Inventory.BUS_PART);
+            inventory.AddItem(CompanionInventory.BUS_PART);
+            hasBusPart = true;
+
+            Debug.Log("Игрок передал деталь компаньону!");
+
+            if (workshopDetected)
+            {
+                StartRepairProcess();
+            }
+            else
+            {
+                Debug.Log("Компаньон установит деталь, когда вернется в мастерскую");
+            }
+        }
+        else
+        {
+            Debug.Log("Деталей нема");
         }
     }
     #endregion

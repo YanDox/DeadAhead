@@ -17,7 +17,7 @@ public class BusRepair : MonoBehaviour
     void Update()
     {
         // Ремонт игроком
-        if (isPlayerNear && Input.GetKey(KeyCode.Y)
+        if (isPlayerNear && Input.GetKey(KeyCode.Y))
         {
             TryRepair(playerInventory);
         }
@@ -90,5 +90,24 @@ public class BusRepair : MonoBehaviour
             isCompanionNear = false;
             repairProgress = 0f;
         }
+    }
+
+    public bool InstallPart(CompanionInventory companionInventory)
+    {
+        if (installedParts >= requiredParts) return false;
+
+        if (companionInventory != null && companionInventory.UseItem(CompanionInventory.BUS_PART))
+        {
+            installedParts++;
+            Debug.Log($"Деталь установлена! Осталось: {requiredParts - installedParts}");
+
+            if (installedParts >= requiredParts)
+            {
+                Debug.Log("Автобус полностью отремонтирован!");
+                // Дополнительные действия при завершении ремонта
+            }
+            return true;
+        }
+        return false;
     }
 }

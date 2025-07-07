@@ -12,9 +12,10 @@ GameObject:
   - component: {fileID: 1555348336017877752}
   - component: {fileID: 2183862005706927447}
   - component: {fileID: 4425367768090416107}
+  - component: {fileID: 6330613893222564440}
   m_Layer: 0
   m_Name: part
-  m_TagString: Untagged
+  m_TagString: BusPart
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -75,6 +76,18 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!114 &6330613893222564440
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2890069979460827697}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 20374f5fefab6564ea0b2361edb9fccb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!95 &586927816558945928
 Animator:
   serializedVersion: 3
