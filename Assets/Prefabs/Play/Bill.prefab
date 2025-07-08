@@ -169,8 +169,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   playerCamera: {fileID: 6390134112005427829}
-  primaryWeapon: {fileID: 286121686561983918}
-  secondaryWeapon: {fileID: 286121686043795303}
+  primaryWeapon: {fileID: 286121686043795303}
+  secondaryWeapon: {fileID: 286121686561983918}
   selectedWeapon: {fileID: 0}
 --- !u!1 &286121684854641699
 GameObject:
@@ -381,7 +381,8 @@ Transform:
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
-  m_Children: []
+  m_Children:
+  - {fileID: 8574755789498978251}
   m_Father: {fileID: 286121684676062472}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -496,7 +497,7 @@ MonoBehaviour:
   singleFire: 1
   fireRate: 0.1
   bulletPrefab: {fileID: 4696296699401721060, guid: 765b1f13d28a63c4a806f0ebf4bbcd80, type: 3}
-  firePoint: {fileID: 286121684854641724}
+  firePoint: {fileID: 8574755789498978251}
   bulletsPerMagazine: 30
   timeToReload: 1.5
   weaponDamage: 1000
@@ -527,7 +528,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 286121686636045939}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 1.18}
+  m_LocalPosition: {x: 0.26, y: -0.082, z: 1.077}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 286121686043795302}
@@ -651,27 +652,28 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 900c09346974a614ba470244bfab2ac9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  canMove: 1
-  walkSpeed: 5
-  aimSpeed: 2.5
+  speed: 7.5
+  aimMovementSpeed: 3.5
   sprintSpeed: 12
   crouchSpeed: 3
-  jumpHeight: 1.5
+  jumpSpeed: 8
   gravity: 20
   crouchHeight: 1
   standHeight: 2
-  crouchTransitionSpeed: 5
-  cameraParent: {fileID: 0}
-  lookSpeed: 2
-  lookXLimit: 60
   coverCheckDistance: 0.8
-  coverHeightThreshold: 1.2
-  coverPeekDistance: 1
+  lowCoverHeight: 1.2
+  coverSnapSpeed: 5
   coverMask:
     serializedVersion: 2
     m_Bits: 128
   coverKey: 101
-  animationSmoothTime: 0.1
+  playerCameraParent: {fileID: 0}
+  lookSpeed: 2
+  lookXLimit: 60
+  mouseDeadZone: 0.1
+  animator: {fileID: 0}
+  animationSmoothTime: 0.05
+  canMove: 1
 --- !u!95 &286121685375999847
 Animator:
   serializedVersion: 3
@@ -1149,6 +1151,36 @@ SkinnedMeshRenderer:
     m_Center: {x: 0.14269522, y: 0.97206, z: -0.0018271208}
     m_Extent: {x: 0.8365718, y: 2.2347927, z: 2.882}
   m_DirtyAABB: 0
+--- !u!1 &2518341656490475104
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8574755789498978251}
+  m_Layer: 0
+  m_Name: firePoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8574755789498978251
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2518341656490475104}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0.000014454126, y: 0, z: 1.1800002}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 286121686561983917}
+  m_RootOrder: 0
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2644609648145610322
 GameObject:
   m_ObjectHideFlags: 0
@@ -1601,19 +1633,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5c98be74059e39543b9a9e7d4f3e3876, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  cameraParent: {fileID: 0}
-  playerTransform: {fileID: 3456612606590741736}
-  playerAnimator: {fileID: 286121685375999847}
+  referenceTransform: {fileID: 0}
   collisionOffset: 0.3
-  normalSpeed: 10
-  aimSpeed: 20
-  defaultDistance: 2
-  normalOffset: {x: 0, y: 0, z: -2}
-  aimOffset: {x: 0.5, y: -0.2, z: -1}
-  coverOffset: {x: 0.3, y: -0.1, z: -0.8}
+  cameraSpeed: 15
+  aimCameraSpeed: 20
+  defaultAimOffset: {x: 0.5, y: -0.2, z: -1}
+  defaultLeftOffset: {x: -0.5, y: -0.2, z: -1}
+  coverAimOffset: {x: 0.3, y: -0.1, z: -0.8}
+  coverLeftOffset: {x: -0.3, y: -0.1, z: -0.8}
   aimFOV: 40
-  normalFOV: 60
-  transitionSpeed: 10
+  aimTransitionSpeed: 10
+  aimKey: 324
+  switchShoulderKey: 113
+  animator: {fileID: 286121685375999847}
+  _isAiming: 0
+  _isRightShoulder: 1
 --- !u!95 &286121686727152962
 Animator:
   serializedVersion: 3

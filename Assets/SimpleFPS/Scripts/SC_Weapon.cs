@@ -100,6 +100,7 @@ public class SC_Weapon : MonoBehaviour
 
 	void FireBullet()
 	{
+		Debug.Log("Attempting to fire bullet");
 		Ray ray = manager.playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
 		Vector3 targetPoint = Physics.Raycast(ray, out RaycastHit hit, 100) ? hit.point : ray.GetPoint(100);
 

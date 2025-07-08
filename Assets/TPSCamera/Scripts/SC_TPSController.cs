@@ -1,265 +1,238 @@
 ﻿using UnityEngine;
-using System.Collections;
 
 [RequireComponent(typeof(CharacterController))]
-[RequireComponent(typeof(Animator))]
 public class SC_TPSController : MonoBehaviour
 {
 	[Header("Movement Settings")]
-	public float walkSpeed = 5f;
-	public float aimSpeed = 2.5f;
-	public float sprintSpeed = 8f;
-	public float crouchSpeed = 2f;
-	public float jumpHeight = 1.5f;
-	public float gravityMultiplier = 2f;
-	public float airControl = 0.5f;
+	public float speed = 7.5f;
+	public float aimMovementSpeed = 3.5f;
+	public float sprintSpeed = 12f;
+	public float crouchSpeed = 3f;
+	public float jumpSpeed = 8.0f;
+	public float gravity = 20.0f;
 	public float crouchHeight = 1f;
 	public float standHeight = 2f;
-	public float crouchTransitionSpeed = 5f;
-
-	[Header("Camera Settings")]
-	public Camera playerCamera;
-	public float lookSpeed = 2f;
-	public float lookXLimit = 80f;
-	public Vector3 cameraStandOffset = new Vector3(0, 1.6f, -2f);
-	public Vector3 cameraCrouchOffset = new Vector3(0, 0.8f, -2f);
-	public Vector3 cameraAimOffset = new Vector3(0.5f, 1.4f, -1f);
-	public Vector3 cameraCoverOffset = new Vector3(0.3f, 0.7f, -0.8f);
-	public float cameraMoveSpeed = 10f;
 
 	[Header("Cover System")]
 	public float coverCheckDistance = 0.8f;
-	public float coverHeightThreshold = 1.2f;
-	public float coverPeekDistance = 1f;
+	public float lowCoverHeight = 1.2f;
+	public float coverSnapSpeed = 5f;
 	public LayerMask coverMask;
 	public KeyCode coverKey = KeyCode.E;
 
-	[Header("Animation Settings")]
+	[Header("Camera")]
+	public Transform playerCameraParent;
+	public float lookSpeed = 2.0f;
+	public float lookXLimit = 60.0f;
+	public float mouseDeadZone = 0.1f; // Добавлено для плавности
+
+	public Animator animator;
 	public float animationSmoothTime = 0.1f;
 
-	[HideInInspector] public bool IsInCover { get; private set; }
-	[HideInInspector] public bool canMove = true;
-	[HideInInspector] public bool CanPeekLeft { get; private set; }
-	[HideInInspector] public bool CanPeekRight { get; private set; }
-
-	private CharacterController controller;
-	private Animator animator;
-	private Vector2 rotation;
-	private float currentHeight;
-	private bool isCrouching;
-	private bool isSprinting;
-	private bool isJumping;
-	private bool isGrounded;
+	private CharacterController characterController;
+	private Vector3 moveDirection = Vector3.zero;
+	private Vector2 rotation = Vector2.zero;
+	private float originalSpeed;
+	private float originalHeight;
+	private bool isCrouching = false;
+	private bool isSprinting = false;
+	private bool isInCover = false;
 	private Vector3 coverNormal;
-	private float verticalVelocity;
-	private bool isAiming;
+	private float coverTimer;
+	private bool canPeekLeft;
+	private bool canPeekRight;
+
+	[HideInInspector] public bool canMove = true;
+	[HideInInspector] public bool CanPeekLeft => canPeekLeft;
+	[HideInInspector] public bool CanPeekRight => canPeekRight;
+	[HideInInspector] public bool IsInCover => isInCover;
 
 	void Start()
 	{
-		controller = GetComponent<CharacterController>();
-		animator = GetComponent<Animator>();
+		characterController = GetComponent<CharacterController>();
 		rotation.y = transform.eulerAngles.y;
-		currentHeight = standHeight;
-
-		if (playerCamera == null)
-			playerCamera = Camera.main;
-
-		playerCamera.transform.localPosition = cameraStandOffset;
-		playerCamera.transform.localRotation = Quaternion.identity;
-
-		Cursor.lockState = CursorLockMode.Locked;
-		Cursor.visible = false;
+		originalSpeed = speed;
+		originalHeight = characterController.height;
 	}
 
 	void Update()
 	{
-		isGrounded = controller.isGrounded;
-
-		if (isGrounded && verticalVelocity < 0)
-		{
-			verticalVelocity = -2f;
-			isJumping = false;
-			animator.SetBool("Grounded", true);
-		}
-
-		HandleAim();
+		HandleCoverSystem();
 		HandleMovement();
 		HandleCameraRotation();
-		HandleCover();
-		HandleJump();
-		ApplyGravity();
-		UpdateAnimations();
-		UpdateCameraPosition();
 	}
 
-	// Добавленный метод для определения скорости движения
-	float GetTargetSpeed()
+	void HandleCoverSystem()
 	{
-		if (IsInCover) return crouchSpeed;
-		if (isCrouching) return crouchSpeed;
-		if (isSprinting) return sprintSpeed;
-		if (isAiming) return aimSpeed;
-		return walkSpeed;
-	}
+		bool coverDetected = CheckCover();
 
-	void HandleAim()
-	{
-		if (Input.GetMouseButtonDown(1))
+		if (coverDetected && Input.GetKeyDown(coverKey) && !isInCover)
 		{
-			isAiming = !isAiming;
-			animator.SetBool("Aim", isAiming);
+			EnterCover();
 		}
-	}
-
-	void UpdateCameraPosition()
-	{
-		Vector3 targetOffset;
-
-		if (IsInCover)
-			targetOffset = cameraCoverOffset;
-		else if (isCrouching)
-			targetOffset = isAiming ? cameraAimOffset : cameraCrouchOffset;
-		else
-			targetOffset = isAiming ? cameraAimOffset : cameraStandOffset;
-
-		playerCamera.transform.localPosition = Vector3.Lerp(
-			playerCamera.transform.localPosition,
-			targetOffset,
-			Time.deltaTime * cameraMoveSpeed);
-	}
-
-	void HandleMovement()
-	{
-		if (!canMove) return;
-
-		float speed = GetTargetSpeed();
-		Vector3 input = new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical")).normalized;
-
-		float controlFactor = isGrounded ? 1f : airControl;
-
-		if (input.magnitude >= 0.1f)
-		{
-			float targetAngle = Mathf.Atan2(input.x, input.z) * Mathf.Rad2Deg + playerCamera.transform.eulerAngles.y;
-			Vector3 moveDir = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
-			controller.Move(moveDir.normalized * speed * controlFactor * Time.deltaTime);
-		}
-
-		isSprinting = Input.GetKey(KeyCode.LeftShift) && !isCrouching && !IsInCover && isGrounded && !isAiming;
-	}
-
-	void HandleCameraRotation()
-	{
-		if (!canMove) return;
-
-		rotation.y += Input.GetAxis("Mouse X") * lookSpeed;
-		rotation.x -= Input.GetAxis("Mouse Y") * lookSpeed;
-		rotation.x = Mathf.Clamp(rotation.x, -lookXLimit, lookXLimit);
-
-		playerCamera.transform.localRotation = Quaternion.Euler(rotation.x, 0, 0);
-		transform.rotation = Quaternion.Euler(0, rotation.y, 0);
-	}
-
-	void HandleCover()
-	{
-		bool coverDetected = Physics.Raycast(transform.position + Vector3.up * 0.5f, transform.forward,
-			out RaycastHit hit, coverCheckDistance, coverMask);
-
-		if (coverDetected)
-		{
-			coverNormal = hit.normal;
-			if (hit.collider.bounds.size.y < coverHeightThreshold && !IsInCover)
-			{
-				ToggleCrouch(true);
-			}
-
-			if (Input.GetKeyDown(coverKey) && !IsInCover)
-			{
-				EnterCover();
-			}
-		}
-
-		if (IsInCover && (Input.GetKey(KeyCode.S) || !coverDetected))
+		else if (isInCover && (Input.GetKey(KeyCode.S) || !coverDetected))
 		{
 			ExitCover();
 		}
 
-		if (IsInCover)
+		if (isInCover)
 		{
+			coverTimer += Time.deltaTime;
+			if (coverTimer < 0.5f)
+			{
+				SnapToCover();
+			}
 			CheckPeekDirections();
+			HandleCoverMovement();
 		}
+	}
+
+	bool CheckCover()
+	{
+		if (Physics.Raycast(transform.position + Vector3.up * 0.5f, transform.forward,
+						  out RaycastHit hit, coverCheckDistance, coverMask))
+		{
+			coverNormal = hit.normal;
+			if (hit.collider.bounds.size.y < lowCoverHeight && !isInCover)
+			{
+				isCrouching = true;
+				characterController.height = crouchHeight;
+			}
+			return true;
+		}
+		return false;
 	}
 
 	void EnterCover()
 	{
-		IsInCover = true;
+		isInCover = true;
+		coverTimer = 0f;
 		canMove = false;
-		animator.SetBool("InCover", true);
 	}
 
 	void ExitCover()
 	{
-		IsInCover = false;
+		isInCover = false;
 		canMove = true;
-		animator.SetBool("InCover", false);
+
+		if (isCrouching && !Physics.Raycast(transform.position, transform.forward,
+										  coverCheckDistance, coverMask))
+		{
+			isCrouching = false;
+			characterController.height = originalHeight;
+		}
+	}
+
+	void SnapToCover()
+	{
+		Vector3 targetPosition = transform.position - coverNormal * 0.3f;
+		transform.position = Vector3.Lerp(transform.position, targetPosition, coverSnapSpeed * Time.deltaTime);
 	}
 
 	void CheckPeekDirections()
 	{
-		CanPeekLeft = !Physics.Raycast(transform.position, -transform.right, coverPeekDistance, coverMask);
-		CanPeekRight = !Physics.Raycast(transform.position, transform.right, coverPeekDistance, coverMask);
+		canPeekLeft = !Physics.Raycast(transform.position, -transform.right, 1f, coverMask);
+		canPeekRight = !Physics.Raycast(transform.position, transform.right, 1f, coverMask);
 	}
 
-	void ApplyGravity()
+	void HandleCoverMovement()
 	{
-		verticalVelocity += Physics.gravity.y * gravityMultiplier * Time.deltaTime;
-
-		if (verticalVelocity < -20f)
-			verticalVelocity = -20f;
-
-		controller.Move(new Vector3(0, verticalVelocity, 0) * Time.deltaTime);
-	}
-
-	void HandleJump()
-	{
-		if (Input.GetButtonDown("Jump") && isGrounded && !isCrouching && !IsInCover && canMove)
+		if (canPeekLeft && Input.GetKey(KeyCode.A))
 		{
-			verticalVelocity = Mathf.Sqrt(2f * Mathf.Abs(Physics.gravity.y) * gravityMultiplier * jumpHeight);
-			isJumping = true;
-			animator.SetTrigger("Jump");
-			animator.SetBool("Grounded", false);
+			characterController.Move(-transform.right * speed * 0.5f * Time.deltaTime);
+		}
+		else if (canPeekRight && Input.GetKey(KeyCode.D))
+		{
+			characterController.Move(transform.right * speed * 0.5f * Time.deltaTime);
 		}
 	}
 
-	void UpdateAnimations()
+	void HandleMovement()
 	{
-		float forward = Input.GetAxis("Vertical");
-		float strafe = Input.GetAxis("Horizontal");
+		if (isInCover) return;
 
-		if (isSprinting)
+		if (Input.GetKeyDown(KeyCode.C) && canMove && characterController.isGrounded)
 		{
-			forward = Mathf.Clamp(forward, 0, 1);
+			isCrouching = !isCrouching;
+			characterController.height = isCrouching ? crouchHeight : originalHeight;
+			animator.SetBool("Crouch", isCrouching);
 		}
 
-		animator.SetFloat("Forward", forward, animationSmoothTime, Time.deltaTime);
-		animator.SetFloat("Strafe", strafe, animationSmoothTime, Time.deltaTime);
-		animator.SetBool("Sprint", isSprinting);
-		animator.SetBool("Crouch", isCrouching);
-	}
+		isSprinting = Input.GetKey(KeyCode.LeftShift) && canMove && !isCrouching && characterController.isGrounded;
 
-	void ToggleCrouch(bool state)
-	{
-		isCrouching = state;
-		currentHeight = isCrouching ? crouchHeight : standHeight;
-		StartCoroutine(AdjustHeight());
-	}
+		speed = isSprinting ? sprintSpeed :
+			   isCrouching ? crouchSpeed :
+			   originalSpeed;
 
-	IEnumerator AdjustHeight()
-	{
-		while (Mathf.Abs(controller.height - currentHeight) > 0.01f)
+		if (characterController.isGrounded)
 		{
-			controller.height = Mathf.Lerp(controller.height, currentHeight, crouchTransitionSpeed * Time.deltaTime);
-			yield return null;
+			Vector3 forward = transform.TransformDirection(Vector3.forward);
+			Vector3 right = transform.TransformDirection(Vector3.right);
+
+			float verticalInput = Input.GetAxis("Vertical");
+			float horizontalInput = Input.GetAxis("Horizontal");
+
+			float curSpeedX = canMove ? speed * verticalInput : 0;
+			float curSpeedY = canMove ? speed * horizontalInput : 0;
+			moveDirection = (forward * curSpeedX) + (right * curSpeedY);
+
+			// Улучшенный расчет для анимации
+			float moveBlend = new Vector2(verticalInput, horizontalInput).magnitude;
+
+			// Нормализуем значение для аниматора (0-1 при ходьбе, 1-2 при беге)
+			if (isSprinting && moveBlend > 0)
+			{
+				moveBlend = Mathf.Clamp(moveBlend * 2f, 0, 2f);
+			}
+			else
+			{
+				moveBlend = Mathf.Clamp(moveBlend, 0, 1f);
+			}
+
+			// Добавляем порог для остановки анимации
+			if (moveBlend < 0.1f) moveBlend = 0f;
+
+			animator.SetFloat("Forward", moveBlend, animationSmoothTime, Time.deltaTime);
+
+			if (Input.GetButton("Jump") && canMove && !isCrouching)
+			{
+				moveDirection.y = jumpSpeed;
+				animator.SetTrigger("Jump");
+			}
 		}
-		controller.height = currentHeight;
+		else
+		{
+			// При падении сбрасываем анимацию движения
+			animator.SetFloat("Forward", 0f, 0.1f, Time.deltaTime);
+		}
+
+		moveDirection.y -= gravity * Time.deltaTime;
+		characterController.Move(moveDirection * Time.deltaTime);
+	}
+
+	void HandleCameraRotation()
+	{
+		if (canMove)
+		{
+			float mouseX = Input.GetAxis("Mouse X");
+			float mouseY = Input.GetAxis("Mouse Y");
+
+			// Игнорируем очень маленькие движения мыши
+			if (Mathf.Abs(mouseX) < mouseDeadZone) mouseX = 0;
+			if (Mathf.Abs(mouseY) < mouseDeadZone) mouseY = 0;
+
+			rotation.y += mouseX * lookSpeed;
+			rotation.x += -mouseY * lookSpeed;
+			rotation.x = Mathf.Clamp(rotation.x, -lookXLimit, lookXLimit);
+
+			// Плавный поворот камеры
+			playerCameraParent.localRotation = Quaternion.Slerp(
+				playerCameraParent.localRotation,
+				Quaternion.Euler(rotation.x, 0, 0),
+				lookSpeed * Time.deltaTime * 5f
+			);
+
+			transform.eulerAngles = new Vector2(0, rotation.y);
+		}
 	}
 }
