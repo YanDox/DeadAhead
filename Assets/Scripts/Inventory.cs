@@ -1,27 +1,55 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class Inventory : MonoBehaviour
 {
-	public int[] items = new int[4]; // 4 ячейки инвентаря
-
-	// Индексы ячеек
+	public int[] items = new int[4];
 	public const int RIFLE_AMMO = 0;
 	public const int AXE = 1;
 	public const int BUS_PART = 2;
 	public const int MEDKIT = 3;
 
+	[Header("Ultimate Settings")]
+	public int ultimatePoints = 0;
+	public int maxUltimate = 100;
+	public float ultimateDuration = 10f;
+	public bool isUltimateActive = false;
+
+	public event System.Action<int> OnUltimateChanged;
+
 	void Start()
 	{
-		// Инициализация инвентаря
-		items[RIFLE_AMMO] = 30; // Начальное количество патронов
-		items[AXE] = 0;         // Топора нет
-		items[BUS_PART] = 0;    // Детали нет
-		items[MEDKIT] = 1;      // 1 аптечка
+		items[RIFLE_AMMO] = 30;
+		items[AXE] = 0;
+		items[BUS_PART] = 0;
+		items[MEDKIT] = 1;
 	}
 
-	// Добавление предмета в инвентарь
+	public void AddUltimatePoints(int amount)
+	{
+		if (!isUltimateActive)
+		{
+			ultimatePoints = Mathf.Min(ultimatePoints + amount, maxUltimate);
+			OnUltimateChanged?.Invoke(ultimatePoints);
+		}
+	}
+
+	public bool ActivateUltimate()
+	{
+		if (ultimatePoints >= maxUltimate && !isUltimateActive)
+		{
+			ultimatePoints = 0;
+			isUltimateActive = true;
+			OnUltimateChanged?.Invoke(ultimatePoints);
+			return true;
+		}
+		return false;
+	}
+
+	public void DeactivateUltimate()
+	{
+		isUltimateActive = false;
+	}
+
 	public bool AddItem(int itemType, int amount = 1)
 	{
 		switch (itemType)
@@ -31,7 +59,7 @@ public class Inventory : MonoBehaviour
 				return true;
 
 			case AXE:
-				if (items[AXE] + amount <= 1) // Максимум 1 топор
+				if (items[AXE] + amount <= 1)
 				{
 					items[AXE] += amount;
 					return true;
@@ -39,7 +67,7 @@ public class Inventory : MonoBehaviour
 				break;
 
 			case BUS_PART:
-				if (items[BUS_PART] == 0) // Можно нести только 1 деталь
+				if (items[BUS_PART] == 0)
 				{
 					items[BUS_PART] = 1;
 					return true;
@@ -53,7 +81,6 @@ public class Inventory : MonoBehaviour
 		return false;
 	}
 
-	// Использование предмета
 	public bool UseItem(int itemType, int amount = 1)
 	{
 		if (items[itemType] >= amount)

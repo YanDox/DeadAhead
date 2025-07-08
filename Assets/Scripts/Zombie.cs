@@ -19,10 +19,12 @@ public class Zombie : MonoBehaviour
 	public float attackRange = 1.5f;
 	public int attackDamage = 15;
 	public float attackCooldown = 1f;
+	
 
 	private NavMeshAgent navMeshAgent;
 	private Transform playerTransform;
 	private PlayerHealth playerHealth;
+
 	private CompanionHealth companionHealth;
 	private ZombieState currentState = ZombieState.Patrolling;
 	private Vector3 spawnPosition;

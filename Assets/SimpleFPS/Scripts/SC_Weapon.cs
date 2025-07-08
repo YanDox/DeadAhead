@@ -1,5 +1,5 @@
-﻿using System.Collections;
-using UnityEngine;
+﻿using UnityEngine;
+using System.Collections; // Добавьте эту строку
 
 [RequireComponent(typeof(AudioSource))]
 public class SC_Weapon : MonoBehaviour
@@ -10,117 +10,96 @@ public class SC_Weapon : MonoBehaviour
 	public Transform firePoint;
 	public int bulletsPerMagazine = 30;
 	public float timeToReload = 1.5f;
-	public float weaponDamage = 15;
+	public float weaponDamage = 15; //How much damage should this weapon deal
 	public AudioClip fireAudio;
 	public AudioClip reloadAudio;
 
 	[HideInInspector]
 	public SC_WeaponManager manager;
 
-	private float nextFireTime = 0;
-	private bool canFire = true;
-	private int bulletsPerMagazineDefault = 0;
-	private AudioSource audioSource;
-	private SC_CameraCollision cameraCollision;
-	private SC_TPSController playerController;
+	float nextFireTime = 0;
+	bool canFire = true;
+	int bulletsPerMagazineDefault = 0;
+	AudioSource audioSource;
 
-	void Awake()
-	{
-		audioSource = GetComponent<AudioSource>();
-		audioSource.playOnAwake = false;
-		audioSource.spatialBlend = 1f;
-	}
-
+	// Start is called before the first frame update
 	void Start()
 	{
 		bulletsPerMagazineDefault = bulletsPerMagazine;
-		InitializeComponents();
+		audioSource = GetComponent<AudioSource>();
+		audioSource.playOnAwake = false;
+		//Make sound 3D
+		audioSource.spatialBlend = 1f;
 	}
 
-	void InitializeComponents()
-	{
-		if (manager != null && manager.playerCamera != null)
-		{
-			cameraCollision = manager.playerCamera.GetComponent<SC_CameraCollision>();
-			playerController = manager.playerCamera.GetComponentInParent<SC_TPSController>();
-		}
-	}
-
+	// Update is called once per frame
 	void Update()
 	{
-		if (cameraCollision == null || playerController == null) return;
-
-		bool canShoot = !playerController.IsInCover || CheckPeekShooting();
-
-		if (cameraCollision.IsAiming && canShoot)
+		if (Input.GetMouseButtonDown(0) && singleFire)
 		{
-			HandleShooting();
+			Fire();
 		}
-
+		if (Input.GetMouseButton(0) && !singleFire)
+		{
+			Fire();
+		}
 		if (Input.GetKeyDown(KeyCode.R) && canFire)
 		{
 			StartCoroutine(Reload());
 		}
 	}
 
-	bool CheckPeekShooting()
+	public void Fire()
 	{
-		return (Input.GetKey(KeyCode.A) && playerController.CanPeekLeft) ||
-			   (Input.GetKey(KeyCode.D) && playerController.CanPeekRight);
-	}
-
-	void HandleShooting()
-	{
-		if (Input.GetMouseButtonDown(0) && singleFire)
+		if (canFire)
 		{
-			TryFire();
-		}
-		if (Input.GetMouseButton(0) && !singleFire)
-		{
-			TryFire();
-		}
-	}
-
-	void TryFire()
-	{
-		if (canFire && Time.time > nextFireTime)
-		{
-			nextFireTime = Time.time + fireRate;
-
-			if (bulletsPerMagazine > 0)
+			if (Time.time > nextFireTime)
 			{
-				FireBullet();
-			}
-			else
-			{
-				StartCoroutine(Reload());
+				nextFireTime = Time.time + fireRate;
+
+				if (bulletsPerMagazine > 0)
+				{
+					//Point fire point at the current center of Camera
+					Vector3 firePointPointerPosition = manager.playerCamera.transform.position + manager.playerCamera.transform.forward * 100;
+					RaycastHit hit;
+					if (Physics.Raycast(manager.playerCamera.transform.position, manager.playerCamera.transform.forward, out hit, 100))
+					{
+						firePointPointerPosition = hit.point;
+					}
+					firePoint.LookAt(firePointPointerPosition);
+					//Fire
+					GameObject bulletObject = Instantiate(bulletPrefab, firePoint.position, firePoint.rotation);
+					SC_Bullet bullet = bulletObject.GetComponent<SC_Bullet>();
+					//Set bullet damage according to weapon damage value
+					bullet.SetDamage(weaponDamage);
+
+					bulletsPerMagazine--;
+					audioSource.clip = fireAudio;
+					audioSource.Play();
+				}
+				else
+				{
+					StartCoroutine(Reload());
+				}
 			}
 		}
-	}
-
-	void FireBullet()
-	{
-		Debug.Log("Attempting to fire bullet");
-		Ray ray = manager.playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
-		Vector3 targetPoint = Physics.Raycast(ray, out RaycastHit hit, 100) ? hit.point : ray.GetPoint(100);
-
-		firePoint.LookAt(targetPoint);
-		GameObject bulletObject = Instantiate(bulletPrefab, firePoint.position, firePoint.rotation);
-		bulletObject.GetComponent<SC_Bullet>().SetDamage(weaponDamage);
-
-		bulletsPerMagazine--;
-		audioSource.PlayOneShot(fireAudio);
 	}
 
 	IEnumerator Reload()
 	{
 		canFire = false;
-		audioSource.PlayOneShot(reloadAudio);
+
+		audioSource.clip = reloadAudio;
+		audioSource.Play();
+
 		yield return new WaitForSeconds(timeToReload);
+
 		bulletsPerMagazine = bulletsPerMagazineDefault;
+
 		canFire = true;
 	}
 
+	//Called from SC_WeaponManager
 	public void ActivateWeapon(bool activate)
 	{
 		StopAllCoroutines();
