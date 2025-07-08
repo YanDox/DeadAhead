@@ -12,6 +12,9 @@ public class SC_TPSController : MonoBehaviour
 	public float gravity = 20.0f;
 	public float crouchHeight = 1f;
 	public float standHeight = 2f;
+	public float rollDistance = 3f;
+	public float rollDuration = 0.5f;
+	public float jumpCooldown = 0.3f;
 
 	[Header("Cover System")]
 	public float coverCheckDistance = 0.8f;
@@ -24,7 +27,12 @@ public class SC_TPSController : MonoBehaviour
 	public Transform playerCameraParent;
 	public float lookSpeed = 2.0f;
 	public float lookXLimit = 60.0f;
-	public float mouseDeadZone = 0.1f; // Добавлено для плавности
+	public float mouseDeadZone = 0.1f;
+
+	[Header("Ground Check")]
+	public float groundCheckDistance = 0.2f;
+	public LayerMask groundMask;
+	public float groundCheckOffset = 0.1f;
 
 	public Animator animator;
 	public float animationSmoothTime = 0.1f;
@@ -34,11 +42,16 @@ public class SC_TPSController : MonoBehaviour
 	private Vector2 rotation = Vector2.zero;
 	private float originalSpeed;
 	private float originalHeight;
+	private bool isGrounded;
 	private bool isCrouching = false;
 	private bool isSprinting = false;
 	private bool isInCover = false;
+	private bool isRolling = false;
 	private Vector3 coverNormal;
 	private float coverTimer;
+	private float rollTimer;
+	private Vector3 rollDirection;
+	private float jumpCooldownTimer;
 	private bool canPeekLeft;
 	private bool canPeekRight;
 
@@ -57,9 +70,39 @@ public class SC_TPSController : MonoBehaviour
 
 	void Update()
 	{
-		HandleCoverSystem();
-		HandleMovement();
-		HandleCameraRotation();
+		bool wasGrounded = isGrounded;
+		isGrounded = CheckGrounded();
+
+		if (!wasGrounded && isGrounded)
+		{
+			animator.SetTrigger("Land");
+		}
+
+		if (jumpCooldownTimer > 0)
+			jumpCooldownTimer -= Time.deltaTime;
+
+		if (!isRolling)
+		{
+			HandleCoverSystem();
+			HandleMovement();
+			HandleCameraRotation();
+		}
+		else
+		{
+			HandleRoll();
+		}
+	}
+
+	bool CheckGrounded()
+	{
+		if (Physics.Raycast(transform.position + Vector3.up * groundCheckOffset,
+						  Vector3.down,
+						  groundCheckDistance + groundCheckOffset,
+						  groundMask))
+		{
+			return true;
+		}
+		return characterController.isGrounded;
 	}
 
 	void HandleCoverSystem()
@@ -149,22 +192,28 @@ public class SC_TPSController : MonoBehaviour
 
 	void HandleMovement()
 	{
-		if (isInCover) return;
+		if (isInCover || isRolling) return;
 
-		if (Input.GetKeyDown(KeyCode.C) && canMove && characterController.isGrounded)
+		if (Input.GetKeyDown(KeyCode.LeftControl) && canMove && isGrounded && !isCrouching)
+		{
+			StartRoll();
+			return;
+		}
+
+		if (Input.GetKeyDown(KeyCode.C) && canMove && isGrounded)
 		{
 			isCrouching = !isCrouching;
 			characterController.height = isCrouching ? crouchHeight : originalHeight;
 			animator.SetBool("Crouch", isCrouching);
 		}
 
-		isSprinting = Input.GetKey(KeyCode.LeftShift) && canMove && !isCrouching && characterController.isGrounded;
+		isSprinting = Input.GetKey(KeyCode.LeftShift) && canMove && !isCrouching && isGrounded;
 
 		speed = isSprinting ? sprintSpeed :
 			   isCrouching ? crouchSpeed :
 			   originalSpeed;
 
-		if (characterController.isGrounded)
+		if (isGrounded)
 		{
 			Vector3 forward = transform.TransformDirection(Vector3.forward);
 			Vector3 right = transform.TransformDirection(Vector3.right);
@@ -176,10 +225,8 @@ public class SC_TPSController : MonoBehaviour
 			float curSpeedY = canMove ? speed * horizontalInput : 0;
 			moveDirection = (forward * curSpeedX) + (right * curSpeedY);
 
-			// Улучшенный расчет для анимации
 			float moveBlend = new Vector2(verticalInput, horizontalInput).magnitude;
 
-			// Нормализуем значение для аниматора (0-1 при ходьбе, 1-2 при беге)
 			if (isSprinting && moveBlend > 0)
 			{
 				moveBlend = Mathf.Clamp(moveBlend * 2f, 0, 2f);
@@ -189,25 +236,64 @@ public class SC_TPSController : MonoBehaviour
 				moveBlend = Mathf.Clamp(moveBlend, 0, 1f);
 			}
 
-			// Добавляем порог для остановки анимации
 			if (moveBlend < 0.1f) moveBlend = 0f;
 
 			animator.SetFloat("Forward", moveBlend, animationSmoothTime, Time.deltaTime);
 
-			if (Input.GetButton("Jump") && canMove && !isCrouching)
+			if (Input.GetButton("Jump") && canMove && !isCrouching && jumpCooldownTimer <= 0)
 			{
 				moveDirection.y = jumpSpeed;
 				animator.SetTrigger("Jump");
+				jumpCooldownTimer = jumpCooldown;
 			}
 		}
 		else
 		{
-			// При падении сбрасываем анимацию движения
 			animator.SetFloat("Forward", 0f, 0.1f, Time.deltaTime);
 		}
 
 		moveDirection.y -= gravity * Time.deltaTime;
-		characterController.Move(moveDirection * Time.deltaTime);
+
+		if (!isRolling)
+		{
+			characterController.Move(moveDirection * Time.deltaTime);
+		}
+	}
+
+	void StartRoll()
+	{
+		isRolling = true;
+		rollTimer = rollDuration;
+
+		float verticalInput = Input.GetAxis("Vertical");
+		float horizontalInput = Input.GetAxis("Horizontal");
+
+		if (Mathf.Abs(verticalInput) > 0.1f || Mathf.Abs(horizontalInput) > 0.1f)
+		{
+			rollDirection = transform.forward * verticalInput + transform.right * horizontalInput;
+			rollDirection.y = 0;
+			rollDirection.Normalize();
+		}
+		else
+		{
+			rollDirection = transform.forward;
+		}
+
+		animator.SetTrigger("Roll");
+	}
+
+	void HandleRoll()
+	{
+		rollTimer -= Time.deltaTime;
+
+		if (rollTimer <= 0)
+		{
+			isRolling = false;
+			return;
+		}
+
+		float rollSpeed = Mathf.Lerp(0, rollDistance, rollTimer / rollDuration) * Time.deltaTime;
+		characterController.Move(rollDirection * rollSpeed);
 	}
 
 	void HandleCameraRotation()
@@ -217,7 +303,6 @@ public class SC_TPSController : MonoBehaviour
 			float mouseX = Input.GetAxis("Mouse X");
 			float mouseY = Input.GetAxis("Mouse Y");
 
-			// Игнорируем очень маленькие движения мыши
 			if (Mathf.Abs(mouseX) < mouseDeadZone) mouseX = 0;
 			if (Mathf.Abs(mouseY) < mouseDeadZone) mouseY = 0;
 
@@ -225,7 +310,6 @@ public class SC_TPSController : MonoBehaviour
 			rotation.x += -mouseY * lookSpeed;
 			rotation.x = Mathf.Clamp(rotation.x, -lookXLimit, lookXLimit);
 
-			// Плавный поворот камеры
 			playerCameraParent.localRotation = Quaternion.Slerp(
 				playerCameraParent.localRotation,
 				Quaternion.Euler(rotation.x, 0, 0),
@@ -234,5 +318,12 @@ public class SC_TPSController : MonoBehaviour
 
 			transform.eulerAngles = new Vector2(0, rotation.y);
 		}
+	}
+
+	void OnDrawGizmos()
+	{
+		Gizmos.color = Color.red;
+		Gizmos.DrawLine(transform.position + Vector3.up * groundCheckOffset,
+					   transform.position + Vector3.up * groundCheckOffset + Vector3.down * groundCheckDistance);
 	}
 }

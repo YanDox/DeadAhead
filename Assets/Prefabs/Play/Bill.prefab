@@ -660,6 +660,9 @@ MonoBehaviour:
   gravity: 20
   crouchHeight: 1
   standHeight: 2
+  rollDistance: 30
+  rollDuration: 0.5
+  jumpCooldown: 0.3
   coverCheckDistance: 0.8
   lowCoverHeight: 1.2
   coverSnapSpeed: 5
@@ -671,6 +674,11 @@ MonoBehaviour:
   lookSpeed: 2
   lookXLimit: 60
   mouseDeadZone: 0.1
+  groundCheckDistance: 0.2
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 0
+  groundCheckOffset: 0.1
   animator: {fileID: 0}
   animationSmoothTime: 0.05
   canMove: 1
