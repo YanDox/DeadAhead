@@ -74,8 +74,8 @@ public class SC_Weapon : MonoBehaviour
 					bullet.SetDamage(weaponDamage);
 
 					bulletsPerMagazine--;
-					audioSource.clip = fireAudio;
-					audioSource.Play();
+					//audioSource.clip = fireAudio;
+					//audioSource.Play();
 				}
 				else
 				{
