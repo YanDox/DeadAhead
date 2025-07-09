@@ -25,8 +25,8 @@ public class CompanionAI : MonoBehaviour
     public float rotationSpeed = 4f;
 
     [Header("Stay Point Settings")]
-    public float stayPointRadius = 7f;
-    public float detectionRadius = 15f;
+    public float stayPointRadius = 10f;
+    public float detectionRadius = 20f;
     public Transform targetStayPoint;
     public KeyCode stayToggleKey = KeyCode.E;
 
@@ -269,26 +269,45 @@ public class CompanionAI : MonoBehaviour
 
     private void FindWorkshop()
     {
-        if (targetStayPoint == null)
+        GameObject workshopObj = GameObject.FindGameObjectWithTag("Workshop");
+
+        if (workshopObj == null)
         {
-            GameObject workshopObj = GameObject.FindGameObjectWithTag("Workshop");
-            if (workshopObj != null)
+            BusRepair busRepair = FindObjectOfType<BusRepair>();
+            if (busRepair != null)
             {
-                targetStayPoint = workshopObj.transform;
+                workshopObj = busRepair.gameObject;
             }
+        }
+
+        if (workshopObj != null)
+        {
+            targetStayPoint = workshopObj.transform;
+            workshop = workshopObj.transform; // Важно: сохраняем в workshop!
+            currentWorkshop = workshopObj.GetComponent<BusRepair>();
+            Debug.Log($"Мастерская найдена: {workshopObj.name}");
+        }
+        else
+        {
+            Debug.LogWarning("Мастерская не найдена в сцене!");
         }
     }
 
     private void CheckWorkshopDetection()
     {
+        if (targetStayPoint == null || workshop == null)
+        {
+            FindWorkshop();
+        }
+
         if (targetStayPoint == null) return;
 
         float distance = Vector3.Distance(transform.position, targetStayPoint.position);
         workshopDetected = distance <= detectionRadius;
 
         if (workshopDetected && currentState != CompanionState.Staying &&
-        currentState != CompanionState.GoingToWorkshop &&
-        !isReactingToZombie)
+            currentState != CompanionState.GoingToWorkshop &&
+            !isReactingToZombie)
         {
             currentState = CompanionState.GoingToWorkshop;
         }
@@ -626,7 +645,15 @@ public class CompanionAI : MonoBehaviour
 
     private void FindRepairStation()
     {
-        // Используем targetStayPoint как точку ремонта
+        if (targetStayPoint != null)
+        {
+            workshop = targetStayPoint;
+            currentWorkshop = targetStayPoint.GetComponent<BusRepair>();
+            return;
+        }
+
+        FindWorkshop();
+
         if (targetStayPoint != null)
         {
             workshop = targetStayPoint;
@@ -635,12 +662,7 @@ public class CompanionAI : MonoBehaviour
 
         if (workshop == null)
         {
-            GameObject bus = GameObject.FindGameObjectWithTag("Workshop");
-            if (bus != null)
-            {
-                workshop = bus.transform;
-                currentWorkshop = bus.GetComponent<BusRepair>();
-            }
+            currentState = stateBeforeReaction;
         }
     }
 
