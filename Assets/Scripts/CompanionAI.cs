@@ -12,7 +12,8 @@ public class CompanionAI : MonoBehaviour
         Defense,
         Getaway,
         TakePart,
-        Repair
+        Repair,
+        Retreating
     }
 
 # region Settings
@@ -62,6 +63,7 @@ public class CompanionAI : MonoBehaviour
 
     private CompanionState currentState = CompanionState.Staying;
     private CompanionState stateBeforeReaction;
+    private CompanionState stateBeforeRepair;
     private float lastCheckTime;
     private float lastCollisionTime;
     private float lastReactionTime;
@@ -161,6 +163,9 @@ public class CompanionAI : MonoBehaviour
                 break;
             case CompanionState.Repair:
                 UpdateRepair();
+                break;
+            case CompanionState.Retreating:
+                UpdateRetreating();
                 break;
         }
     }
@@ -604,6 +609,7 @@ public class CompanionAI : MonoBehaviour
 #region Repair
     private void StartRepairProcess()
     {
+        stateBeforeRepair = currentState;
         stateBeforeReaction = currentState;
 
         currentState = CompanionState.Repair;
@@ -677,6 +683,31 @@ public class CompanionAI : MonoBehaviour
             if (currentWorkshop.InstallPart(inventory))
             {
                 Debug.Log("Компаньон установил деталь");
+
+                agent.isStopped = false;
+
+                // 1.Рассчитываем точку отхода вокруг мастерской
+                Vector3 randomDirection = Random.insideUnitSphere.normalized;
+                if (randomDirection == Vector3.zero)
+                {
+                    randomDirection = new Vector3(Random.Range(-1f, 1f), 0, Random.Range(-1f, 1f)).normalized;
+                }
+                Vector3 retreatPoint = workshop.position + randomDirection * stayPointRadius;
+
+                // 2. Проверяем доступность позиции на NavMesh
+                NavMeshHit hit;
+                if (NavMesh.SamplePosition(retreatPoint, out hit, stayPointRadius, NavMesh.AllAreas))
+                {
+                    agent.SetDestination(hit.position);
+                    agent.isStopped = false;
+                    currentState = CompanionState.Retreating;
+                    Debug.Log($"Компаньон отходит к точке: {hit.position}");
+                }
+                else
+                {
+                    Debug.LogWarning("Не удалось найти точку отхода на NavMesh");
+                    currentState = CompanionState.Staying;
+                }
             }
             else
             {
@@ -691,6 +722,30 @@ public class CompanionAI : MonoBehaviour
         }
     }
 
+    private void UpdateRetreating()
+    {
+        // Если агент еще рассчитывает путь - ждем
+        if (agent.pathPending) return;
+
+        // Проверяем, достиг ли компаньон точки отхода
+        if (agent.remainingDistance <= agent.stoppingDistance)
+        {
+            // Если агент уже на месте или не двигается
+            if (!agent.hasPath || agent.velocity.sqrMagnitude < 0.1f)
+            {
+                agent.isStopped = true;
+                currentState = CompanionState.Staying;
+                Debug.Log("Компаньон завершил отход и переходит в режим ожидания");
+            }
+        }
+        // Если путь заблокирован
+        else if (agent.pathStatus == NavMeshPathStatus.PathPartial)
+        {
+            Debug.Log("Путь отхода заблокирован, остаемся на месте");
+            agent.isStopped = true;
+            currentState = CompanionState.Staying;
+        }
+    }
 
     private void TryReceivePartFromPlayer()
     {
@@ -791,7 +846,7 @@ public class CompanionAI : MonoBehaviour
 
     private void HandleRotation()
     {
-        if (currentState == CompanionState.Getaway || forceRotationToMovement)
+        if (currentState == CompanionState.Getaway || currentState == CompanionState.Retreating || forceRotationToMovement)
         {
             RotateToDirection(agent.velocity.normalized);
         }
