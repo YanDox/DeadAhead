@@ -55,6 +55,11 @@ public class CompanionAI : MonoBehaviour
     public KeyCode transferPartKey = KeyCode.R;
     public float transferDistance = 3f;
 
+    [Header("Rotation Settings")]
+    public float facePlayerSpeed = 5f;
+    private const float MODEL_ROTATION_CORRECTION = -90f;
+    private bool forceRotationToMovement = false;
+
     private CompanionState currentState = CompanionState.Staying;
     private CompanionState stateBeforeReaction;
     private float lastCheckTime;
@@ -98,6 +103,7 @@ public class CompanionAI : MonoBehaviour
         agent.speed = movementSpeed;
         agent.angularSpeed = rotationSpeed;
         agent.stoppingDistance = minFollowDistance;
+        agent.updateRotation = false;
         agent.autoBraking = true;
     }
 
@@ -107,6 +113,7 @@ public class CompanionAI : MonoBehaviour
 
     void Update()
     {
+        HandleRotation();
         CheckWorkshopDetection();
 
         if (health.isDead)
@@ -130,7 +137,6 @@ public class CompanionAI : MonoBehaviour
         {
             StartRepairProcess();
         }
-
 
         switch (currentState)
         {
@@ -309,12 +315,6 @@ public class CompanionAI : MonoBehaviour
         {
             agent.isStopped = true;
 
-            // Поворот к цели
-            Vector3 direction = (currentTarget.position - transform.position).normalized;
-            direction.y = 0; // Игнорируем разницу по высоте
-            Quaternion lookRotation = Quaternion.LookRotation(direction);
-            transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, Time.deltaTime * rotationSpeed);
-
             if (Time.time >= nextAttackTime)
             {
                 if (attackRoutine != null) StopCoroutine(attackRoutine);
@@ -401,10 +401,14 @@ public class CompanionAI : MonoBehaviour
         float escapeTimer = 0f;
         while ((agent.pathPending || agent.remainingDistance > 0.5f) && escapeTimer < 5f)
         {
-            escapeTimer += Time.deltaTime;
-            yield return null;
+            if (agent.velocity.sqrMagnitude > 0.1f)
+            {
+                escapeTimer += Time.deltaTime;
+                yield return null;
+            }
         }
 
+        forceRotationToMovement = false;
         isReactingToZombie = false;
         currentState = stateBeforeReaction;
         escapeRoutine = null;
@@ -578,7 +582,7 @@ public class CompanionAI : MonoBehaviour
     }
     #endregion
 
-    #region Repair
+#region Repair
     private void StartRepairProcess()
     {
         stateBeforeReaction = currentState;
@@ -757,6 +761,43 @@ public class CompanionAI : MonoBehaviour
 
         if (!wasStopped && currentState != CompanionState.Staying)
             agent.isStopped = false;
+    }
+
+    private void HandleRotation()
+    {
+        if (currentState == CompanionState.Getaway || forceRotationToMovement)
+        {
+            RotateToDirection(agent.velocity.normalized);
+        }
+        else if (currentState == CompanionState.Defense && currentTarget != null)
+        {
+            RotateToDirection(currentTarget.position - transform.position);
+        }
+        else if (currentState == CompanionState.Repair && workshop != null)
+        {
+            RotateToDirection(workshop.position - transform.position);
+        }
+        else if (player != null)
+        {
+            RotateToDirection(player.transform.position - transform.position);
+        }
+    }
+
+    private void RotateToDirection(Vector3 direction)
+    {
+        if (direction.sqrMagnitude < 0.01f) return;
+
+        direction.y = 0;
+        if (direction == Vector3.zero) return;
+
+        Quaternion targetRotation = Quaternion.LookRotation(direction);
+        targetRotation *= Quaternion.Euler(0, MODEL_ROTATION_CORRECTION, 0);
+
+        transform.rotation = Quaternion.Slerp(
+            transform.rotation,
+            targetRotation,
+            facePlayerSpeed * Time.deltaTime
+        );
     }
 
     void OnDrawGizmosSelected()
