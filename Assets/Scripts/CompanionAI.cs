@@ -132,7 +132,7 @@ public class CompanionAI : MonoBehaviour
             TryReceivePartFromPlayer();
         }
 
-        if (workshopDetected && currentState != CompanionState.Repair && currentState != CompanionState.Defense && currentState != CompanionState.Getaway &&
+        if (workshopDetected && !isReactingToZombie && currentState != CompanionState.Repair && currentState != CompanionState.Defense && currentState != CompanionState.Getaway &&
             inventory.items[CompanionInventory.BUS_PART] > 0)
         {
             StartRepairProcess();
@@ -623,23 +623,27 @@ public class CompanionAI : MonoBehaviour
         }
 
         float distanceToBus = Vector3.Distance(transform.position, workshop.position);
+        bool inPosition = distanceToBus <= agent.stoppingDistance + 0.5f;
 
-        if (distanceToBus <= 1f)
+        if (inPosition)
         {
             agent.isStopped = true;
-
-            Vector3 direction = (workshop.position - transform.position).normalized;
-            direction.y = 0;
-            Quaternion lookRotation = Quaternion.LookRotation(direction);
-            transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, Time.deltaTime * rotationSpeed);
-
             StartRepairing();
         }
         else
         {
             agent.isStopped = false;
+
+            // Проверяем возможность достижения цели
+            if (!agent.pathPending && agent.pathStatus == NavMeshPathStatus.PathPartial)
+            {
+                Debug.Log("Путь к мастерской заблокирован, выход из ремонта");
+                currentState = stateBeforeReaction;
+                return;
+            }
+
             agent.SetDestination(workshop.position);
-            Debug.Log($"Компаньон ремонтирует автобус ({distanceToBus:F1} секунд)");
+            Debug.Log($"Компаньон будет ремонтировать автобус через ({distanceToBus:F1} метров)");
         }
     }
 
