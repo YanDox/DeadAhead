@@ -7,6 +7,7 @@ public class Inventory : MonoBehaviour
 	public const int AXE = 1;
 	public const int BUS_PART = 2;
 	public const int MEDKIT = 3;
+	public const int COLA_CRATE = 4;
 
 	[Header("Ultimate Settings")]
 	public int ultimatePoints = 0;
@@ -77,9 +78,18 @@ public class Inventory : MonoBehaviour
 			case MEDKIT:
 				items[MEDKIT] += amount;
 				return true;
+		
+				case COLA_CRATE:
+			if (items[COLA_CRATE] == 0) // Можно нести только один ящик
+			{
+				items[COLA_CRATE] = 1;
+				return true;
+			}
+			break;
 		}
 		return false;
 	}
+
 
 	public bool UseItem(int itemType, int amount = 1)
 	{

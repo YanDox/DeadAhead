@@ -75,6 +75,6 @@ public class EnemyHealth : MonoBehaviour, IEntity
 			playerInv.AddUltimatePoints(Cost);
 		}
 
-		Destroy(gameObject, deathAnimationTime);
+		Destroy(gameObject,0);
 	}
 }
