@@ -11,12 +11,17 @@ public class CompanionHealth : MonoBehaviour, IEntity
     public bool isDead = false;
 
     private CompanionAI companionAI;
+    private Renderer[] renderers; // Для отключения видимости
+    private Collider[] colliders; // Для отключения коллайдеров
 
-	void Start()
+    void Start()
 	{
 		currentHealth = maxHealth;
 		companionAI = GetComponent<CompanionAI>();
-	}
+
+        renderers = GetComponentsInChildren<Renderer>();
+        colliders = GetComponentsInChildren<Collider>();
+    }
 
 	public void TakeDamage(int damage)
 	{
@@ -37,26 +42,52 @@ public class CompanionHealth : MonoBehaviour, IEntity
 
 	void Die()
 	{
-		isDead = true;
+        if (isDead) return;
+        isDead = true;
 
-		// Отключаем компоненты компаньона
-		if (companionAI != null) companionAI.enabled = false;
-		var collider = GetComponent<Collider>();
-		if (collider != null) collider.enabled = false;
+        // 1. Отключаем визуальное отображение
+        ToggleVisibility(false);
 
-		// Эффект смерти
-		if (deathEffect != null)
-		{
-			Instantiate(deathEffect, transform.position, Quaternion.identity);
-		}
+        // 2. Отключаем физику и коллайдеры
+        ToggleColliders(false);
 
-		// Заменяем на зомби
-		if (zombiePrefab != null)
-		{
-			Instantiate(zombiePrefab, transform.position, transform.rotation);
-		}
+        // 3. Отключаем AI
+        if (companionAI != null)
+            companionAI.enabled = false;
 
-		// Уничтожаем компаньона
-		Destroy(gameObject, deathAnimationTime);
-	}
+        // 4. Создаем эффект смерти
+        if (deathEffect != null)
+        {
+            Instantiate(deathEffect, transform.position, Quaternion.identity);
+        }
+
+        // 5. Создаем зомби (если задан префаб)
+        if (zombiePrefab != null)
+        {
+            Instantiate(zombiePrefab, transform.position, transform.rotation);
+        }
+
+        // 6. Уничтожаем объект с задержкой
+        Destroy(gameObject, deathAnimationTime);
+    }
+
+    // Метод для отключения/включения видимости
+    private void ToggleVisibility(bool state)
+    {
+        foreach (var renderer in renderers)
+        {
+            if (renderer != null)
+                renderer.enabled = state;
+        }
+    }
+
+    // Метод для отключения/включения коллайдеров
+    private void ToggleColliders(bool state)
+    {
+        foreach (var collider in colliders)
+        {
+            if (collider != null)
+                collider.enabled = state;
+        }
+    }
 }
