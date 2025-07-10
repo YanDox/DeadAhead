@@ -119,7 +119,6 @@ MonoBehaviour:
   currentHealth: 0
   deathAnimationTime: 1.5
   deathEffect: {fileID: 0}
-  Cost: 10
   damageMaterial: {fileID: 0}
   flashDuration: 0.1
 --- !u!114 &9011643454315067475
@@ -134,8 +133,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9d1390cdc9424bd49b93e4473358d3a3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  detectionRadius: 15
-  chaseRadius: 30
+  detectionRadius: 10
+  chaseRadius: 15
   patrolRadius: 20
   patrolPointMinDistance: 5
   patrolWaitTime: 2
