@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using System;
 public class EnemyHealth : MonoBehaviour, IEntity
 {
 	[Header("Health Settings")]
@@ -8,6 +9,7 @@ public class EnemyHealth : MonoBehaviour, IEntity
 	public float deathAnimationTime = 1.5f;
 	public GameObject deathEffect;
 	public int Cost = 10;
+	public event Action OnDeath;
 
 	[Header("Damage Feedback")]
 	public Material damageMaterial;
@@ -75,6 +77,9 @@ public class EnemyHealth : MonoBehaviour, IEntity
 			playerInv.AddUltimatePoints(Cost);
 		}
 
-		Destroy(gameObject,0);
+		// Вызываем событие смерти перед уничтожением
+		OnDeath?.Invoke();
+
+		Destroy(gameObject, 0);
 	}
 }
