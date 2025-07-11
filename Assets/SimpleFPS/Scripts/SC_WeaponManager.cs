@@ -7,6 +7,7 @@ public class SC_WeaponManager : MonoBehaviour
 	public SC_Weapon secondaryWeapon;
 	private Inventory playerInv;
 	public bool isUltimateActive = false;
+	public SC_CameraCollision cameraCollision; // Добавлена ссылка на SC_CameraCollision
 
 	[HideInInspector]
 	public SC_Weapon selectedWeapon;
@@ -18,6 +19,13 @@ public class SC_WeaponManager : MonoBehaviour
 		{
 			playerInv = FindObjectOfType<Inventory>();
 		}
+
+		// Получаем ссылку на SC_CameraCollision, если не установлена в инспекторе
+		if (cameraCollision == null)
+		{
+			cameraCollision = FindObjectOfType<SC_CameraCollision>();
+		}
+
 		primaryWeapon.ActivateWeapon(true);
 		secondaryWeapon.ActivateWeapon(false);
 		selectedWeapon = primaryWeapon;
@@ -31,11 +39,14 @@ public class SC_WeaponManager : MonoBehaviour
 
 		if (isUltimateActive && selectedWeapon == secondaryWeapon)
 		{
+			// Принудительно включаем прицеливание во время ульты
+			if (cameraCollision != null && !cameraCollision.IsAiming)
+			{
+				cameraCollision.ForceAim(true);
+			}
 			secondaryWeapon.Fire();
 		}
 	}
-
-	
 
 	void HandleWeaponSwitch()
 	{
@@ -62,6 +73,13 @@ public class SC_WeaponManager : MonoBehaviour
 		{
 			playerInv.DeactivateUltimate();
 		}
+
+		// Возвращаем прицеливание в нормальное состояние после ульты
+		if (cameraCollision != null)
+		{
+			cameraCollision.ForceAim(false);
+		}
+
 		SelectWeapon(primaryWeapon);
 	}
 

@@ -127,6 +127,11 @@ public class SC_CameraCollision : MonoBehaviour
 			);
 		}
 	}
+	public void ForceAim(bool enable)
+	{
+		_isAiming = enable;
+		animator.SetBool("Aim", _isAiming);
+	}
 
 	Vector3 GetTargetPosition()
 	{

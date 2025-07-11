@@ -1,5 +1,5 @@
 ﻿using UnityEngine;
-using System.Collections; // Добавьте эту строку
+using System.Collections;
 
 [RequireComponent(typeof(AudioSource))]
 public class SC_Weapon : MonoBehaviour
@@ -10,7 +10,7 @@ public class SC_Weapon : MonoBehaviour
 	public Transform firePoint;
 	public int bulletsPerMagazine = 30;
 	public float timeToReload = 1.5f;
-	public float weaponDamage = 15; //How much damage should this weapon deal
+	public float weaponDamage = 15;
 	public AudioClip fireAudio;
 	public AudioClip reloadAudio;
 
@@ -22,27 +22,31 @@ public class SC_Weapon : MonoBehaviour
 	int bulletsPerMagazineDefault = 0;
 	AudioSource audioSource;
 
-	// Start is called before the first frame update
 	void Start()
 	{
 		bulletsPerMagazineDefault = bulletsPerMagazine;
 		audioSource = GetComponent<AudioSource>();
 		audioSource.playOnAwake = false;
-		//Make sound 3D
 		audioSource.spatialBlend = 1f;
 	}
 
-	// Update is called once per frame
 	void Update()
 	{
-		if (Input.GetMouseButtonDown(0) && singleFire)
+		// Проверяем, находится ли игрок в режиме прицеливания или активна ульта
+		bool canShoot = manager.cameraCollision.IsAiming || manager.isUltimateActive;
+
+		if (canShoot)
 		{
-			Fire();
+			if (Input.GetMouseButtonDown(0) && singleFire)
+			{
+				Fire();
+			}
+			if (Input.GetMouseButton(0) && !singleFire)
+			{
+				Fire();
+			}
 		}
-		if (Input.GetMouseButton(0) && !singleFire)
-		{
-			Fire();
-		}
+
 		if (Input.GetKeyDown(KeyCode.R) && canFire)
 		{
 			StartCoroutine(Reload());
@@ -59,7 +63,6 @@ public class SC_Weapon : MonoBehaviour
 
 				if (bulletsPerMagazine > 0)
 				{
-					//Point fire point at the current center of Camera
 					Vector3 firePointPointerPosition = manager.playerCamera.transform.position + manager.playerCamera.transform.forward * 100;
 					RaycastHit hit;
 					if (Physics.Raycast(manager.playerCamera.transform.position, manager.playerCamera.transform.forward, out hit, 100))
@@ -67,10 +70,9 @@ public class SC_Weapon : MonoBehaviour
 						firePointPointerPosition = hit.point;
 					}
 					firePoint.LookAt(firePointPointerPosition);
-					//Fire
+
 					GameObject bulletObject = Instantiate(bulletPrefab, firePoint.position, firePoint.rotation);
 					SC_Bullet bullet = bulletObject.GetComponent<SC_Bullet>();
-					//Set bullet damage according to weapon damage value
 					bullet.SetDamage(weaponDamage);
 
 					bulletsPerMagazine--;
@@ -88,18 +90,13 @@ public class SC_Weapon : MonoBehaviour
 	IEnumerator Reload()
 	{
 		canFire = false;
-
 		audioSource.clip = reloadAudio;
 		audioSource.Play();
-
 		yield return new WaitForSeconds(timeToReload);
-
 		bulletsPerMagazine = bulletsPerMagazineDefault;
-
 		canFire = true;
 	}
 
-	//Called from SC_WeaponManager
 	public void ActivateWeapon(bool activate)
 	{
 		StopAllCoroutines();
