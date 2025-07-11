@@ -120,8 +120,8 @@ MonoBehaviour:
   deathAnimationTime: 1.5
   deathEffect: {fileID: 2128221879977020383, guid: aa8e43de5a687fb43bddf550fce6fa41, type: 3}
   Cost: 10
-  damageMaterial: {fileID: 0}
-  flashDuration: 0.1
+  damageEffectPrefab: {fileID: 3548588485384254792, guid: 2f9e7dc163581394da1e00b561eed65d, type: 3}
+  effectDuration: 0.3
 --- !u!114 &9011643454315067475
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections;
 using System;
+
 public class EnemyHealth : MonoBehaviour, IEntity
 {
 	[Header("Health Settings")]
@@ -12,21 +13,13 @@ public class EnemyHealth : MonoBehaviour, IEntity
 	public event Action OnDeath;
 
 	[Header("Damage Feedback")]
-	public Material damageMaterial;
-	public float flashDuration = 0.1f;
-	private Material originalMaterial;
-	private SkinnedMeshRenderer meshRenderer;
+	public GameObject damageEffectPrefab; // Префаб эффекта получения урона
+	public float effectDuration = 0.3f; // Длительность эффекта
 	private Inventory playerInv;
 
 	void Start()
 	{
 		currentHealth = maxHealth;
-		meshRenderer = GetComponentInChildren<SkinnedMeshRenderer>();
-		if (meshRenderer != null)
-		{
-			originalMaterial = meshRenderer.material;
-		}
-
 		playerInv = FindObjectOfType<Inventory>();
 	}
 
@@ -45,17 +38,17 @@ public class EnemyHealth : MonoBehaviour, IEntity
 		}
 		else
 		{
-			StartCoroutine(DamageFlash());
+			ShowDamageEffect();
 		}
 	}
 
-	IEnumerator DamageFlash()
+	void ShowDamageEffect()
 	{
-		if (meshRenderer != null && damageMaterial != null)
+		if (damageEffectPrefab != null)
 		{
-			meshRenderer.material = damageMaterial;
-			yield return new WaitForSeconds(flashDuration);
-			meshRenderer.material = originalMaterial;
+			// Создаем эффект и уничтожаем его через заданное время
+			GameObject effect = Instantiate(damageEffectPrefab, transform.position, Quaternion.identity, transform);
+			Destroy(effect, effectDuration);
 		}
 	}
 
