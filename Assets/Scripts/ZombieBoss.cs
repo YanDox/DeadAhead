@@ -1,6 +1,6 @@
 using UnityEngine;
 using UnityEngine.AI;
-using System.Collections.Generic;
+using System.Collections;
 
 public class ZombieBoss : MonoBehaviour
 {
@@ -9,32 +9,37 @@ public class ZombieBoss : MonoBehaviour
 		Patrolling,
 		Chasing,
 		Returning,
-		PreparingThrow,
-		Throwing
+		PreparingDash,
+		Dashing,
+		Attacking
 	}
 
-	[Header("Basic Settings")]
+	[Header("Movement Settings")]
 	public float detectionRadius = 15f;
 	public float chaseRadius = 25f;
 	public float patrolRadius = 30f;
 	public float patrolPointMinDistance = 8f;
 	public float patrolWaitTime = 3f;
+	public float rotationSpeed = 5f;
+
+	[Header("Attack Settings")]
 	public float attackRange = 2f;
 	public int meleeDamage = 25;
 	public float meleeCooldown = 1.5f;
 
-	[Header("Throw Settings")]
-	public float throwRange = 10f;
-	public float throwCooldown = 10f;
-	public float throwForce = 15f;
-	public float throwHeight = 2f;
-	public float throwPreparationTime = 1.5f;
-	public LayerMask zombieLayer;
+	[Header("Dash Attack Settings")]
+	public float dashDistance = 10f;
+	public float dashSpeed = 20f;
+	public float dashCooldown = 10f;
+	public float dashPreparationTime = 1f;
+	public float dashDuration = 0.5f;
+	public int dashDamage = 40; // Изменено с float на int
+	public float dashImpactForce = 15f;
 
-	[Header("References")]
-	public GameObject throwIndicatorPrefab;
-	public AudioClip throwSound;
+	[Header("Audio References")]
+	public AudioClip dashSound;
 	public AudioClip roarSound;
+	public AudioClip attackSound;
 
 	private NavMeshAgent navMeshAgent;
 	private Transform playerTransform;
@@ -48,12 +53,11 @@ public class ZombieBoss : MonoBehaviour
 	private float waitTimer = 0f;
 	private bool isWaiting = false;
 	private float lastMeleeAttackTime;
-	private float lastThrowTime;
-	private GameObject currentThrowIndicator;
-	private Zombie selectedZombieToThrow;
-	private float throwPreparationTimer;
-
-	private List<Zombie> nearbyZombies = new List<Zombie>();
+	private float lastDashTime;
+	private float dashTimer;
+	private bool isDashing = false;
+	private Vector3 dashDirection;
+	private bool isAttackAnimationPlaying = false;
 
 	void Start()
 	{
@@ -74,6 +78,10 @@ public class ZombieBoss : MonoBehaviour
 			playerTransform = playerController.transform;
 			playerHealth = playerController.GetComponent<PlayerHealth>();
 		}
+		else
+		{
+			Debug.LogError("Player controller not found!");
+		}
 	}
 
 	void Update()
@@ -85,6 +93,11 @@ public class ZombieBoss : MonoBehaviour
 		}
 
 		float distanceToPlayer = Vector3.Distance(transform.position, playerTransform.position);
+
+		if (distanceToPlayer <= detectionRadius)
+		{
+			FacePlayer();
+		}
 
 		switch (currentState)
 		{
@@ -100,17 +113,29 @@ public class ZombieBoss : MonoBehaviour
 				UpdateReturning(distanceToPlayer);
 				break;
 
-			case BossState.PreparingThrow:
-				UpdateThrowPreparation(distanceToPlayer);
+			case BossState.PreparingDash:
+				UpdateDashPreparation(distanceToPlayer);
 				break;
 
-			case BossState.Throwing:
-				UpdateThrowing();
+			case BossState.Dashing:
+				break;
+
+			case BossState.Attacking:
 				break;
 		}
 
 		UpdateAnimation();
-		UpdateNearbyZombiesList();
+	}
+
+	private void FacePlayer()
+	{
+		Vector3 directionToPlayer = (playerTransform.position - transform.position).normalized;
+		directionToPlayer.y = 0;
+		if (directionToPlayer != Vector3.zero)
+		{
+			Quaternion targetRotation = Quaternion.LookRotation(directionToPlayer);
+			transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
+		}
 	}
 
 	private void UpdatePatrolling(float distanceToPlayer)
@@ -149,16 +174,14 @@ public class ZombieBoss : MonoBehaviour
 			return;
 		}
 
-		navMeshAgent.SetDestination(playerTransform.position);
-
-		// Check for throw ability
-		if (Time.time - lastThrowTime >= throwCooldown && nearbyZombies.Count > 0 && distanceToPlayer > attackRange * 1.5f)
+		if (Time.time - lastDashTime >= dashCooldown && !isDashing)
 		{
-			StartThrowPreparation();
+			StartDashPreparation();
 			return;
 		}
 
-		// Melee attack
+		navMeshAgent.SetDestination(playerTransform.position);
+
 		if (distanceToPlayer <= attackRange)
 		{
 			MeleeAttack();
@@ -173,11 +196,6 @@ public class ZombieBoss : MonoBehaviour
 			return;
 		}
 
-		if (navMeshAgent.destination != spawnPosition)
-		{
-			navMeshAgent.SetDestination(spawnPosition);
-		}
-
 		if (!navMeshAgent.pathPending && navMeshAgent.remainingDistance <= navMeshAgent.stoppingDistance)
 		{
 			currentState = BossState.Patrolling;
@@ -185,204 +203,169 @@ public class ZombieBoss : MonoBehaviour
 		}
 	}
 
-	private void StartThrowPreparation()
+	private void StartDashPreparation()
 	{
-		currentState = BossState.PreparingThrow;
+		currentState = BossState.PreparingDash;
 		navMeshAgent.isStopped = true;
-		throwPreparationTimer = 0f;
+		dashTimer = 0f;
 
-		// Select closest zombie to throw
-		selectedZombieToThrow = GetClosestZombie();
-
-		if (selectedZombieToThrow != null)
+		if (roarSound != null)
 		{
-			// Create throw indicator
-			if (throwIndicatorPrefab != null)
-			{
-				currentThrowIndicator = Instantiate(throwIndicatorPrefab, playerTransform.position, Quaternion.identity);
-			}
-
-			// Play preparation sound
-			if (roarSound != null && audioSource != null)
-			{
-				audioSource.PlayOneShot(roarSound);
-			}
-
-			// Trigger animation
-			if (animator != null)
-			{
-				animator.SetTrigger("PrepareThrow");
-			}
+			audioSource.PlayOneShot(roarSound);
 		}
-		else
+
+		if (animator != null)
 		{
-			// No zombie to throw, return to chasing
-			currentState = BossState.Chasing;
-			navMeshAgent.isStopped = false;
+			animator.SetTrigger("PrepareDash");
 		}
 	}
 
-	private void UpdateThrowPreparation(float distanceToPlayer)
+	private void UpdateDashPreparation(float distanceToPlayer)
 	{
-		throwPreparationTimer += Time.deltaTime;
+		dashTimer += Time.deltaTime;
+		FacePlayer();
 
-		// Update throw indicator position
-		if (currentThrowIndicator != null)
+		if (dashTimer >= dashPreparationTime)
 		{
-			currentThrowIndicator.transform.position = playerTransform.position;
-		}
-
-		// Face the player
-		Vector3 directionToPlayer = (playerTransform.position - transform.position).normalized;
-		directionToPlayer.y = 0;
-		if (directionToPlayer != Vector3.zero)
-		{
-			transform.rotation = Quaternion.LookRotation(directionToPlayer);
-		}
-
-		if (throwPreparationTimer >= throwPreparationTime)
-		{
-			currentState = BossState.Throwing;
-			ThrowZombie();
+			StartDash();
 		}
 		else if (distanceToPlayer <= attackRange)
 		{
-			// Player got too close, cancel throw
-			CancelThrow();
+			CancelDash();
 			MeleeAttack();
 		}
 	}
 
-	private void UpdateThrowing()
+	private void StartDash()
 	{
-		// Wait for throw animation to complete (handled by animation events)
-		// This state is mostly for animation synchronization
-	}
+		currentState = BossState.Dashing;
+		isDashing = true;
+		dashDirection = (playerTransform.position - transform.position).normalized;
+		dashDirection.y = 0;
 
-	private void ThrowZombie()
-	{
-		if (selectedZombieToThrow == null)
-		{
-			currentState = BossState.Chasing;
-			navMeshAgent.isStopped = false;
-			return;
-		}
-
-		// Play throw sound
-		if (throwSound != null && audioSource != null)
-		{
-			audioSource.PlayOneShot(throwSound);
-		}
-
-		// Trigger throw animation
 		if (animator != null)
 		{
-			animator.SetTrigger("Throw");
+			animator.SetTrigger("Dash");
 		}
 
-		// Calculate throw direction with arc
-		Vector3 throwDirection = (playerTransform.position - selectedZombieToThrow.transform.position).normalized;
-		Vector3 throwVelocity = throwDirection * throwForce;
-		throwVelocity.y = throwHeight;
-
-		// Disable zombie AI and enable physics
-		Rigidbody zombieRb = selectedZombieToThrow.GetComponent<Rigidbody>();
-		if (zombieRb == null)
+		if (dashSound != null)
 		{
-			zombieRb = selectedZombieToThrow.gameObject.AddComponent<Rigidbody>();
+			audioSource.PlayOneShot(dashSound);
 		}
 
-		// Make zombie a projectile
-		selectedZombieToThrow.enabled = false;
-		zombieRb.isKinematic = false;
-		zombieRb.velocity = throwVelocity;
-
-		// Add damage component or tag zombie as thrown
-		ZombieProjectile zombieProjectile = selectedZombieToThrow.gameObject.AddComponent<ZombieProjectile>();
-		zombieProjectile.damage = meleeDamage * 2; // Thrown zombie does more damage
-
-		// Clean up
-		Destroy(currentThrowIndicator);
-		lastThrowTime = Time.time;
-		selectedZombieToThrow = null;
-
-		// Return to chasing
-		currentState = BossState.Chasing;
-		navMeshAgent.isStopped = false;
+		StartCoroutine(PerformDash());
 	}
 
-	private void CancelThrow()
+	private IEnumerator PerformDash()
 	{
-		Destroy(currentThrowIndicator);
-		selectedZombieToThrow = null;
-		navMeshAgent.isStopped = false;
-		currentState = BossState.Chasing;
-	}
+		float startTime = Time.time;
+		Vector3 startPosition = transform.position;
+		Vector3 targetPosition = startPosition + dashDirection * dashDistance;
 
-	private Zombie GetClosestZombie()
-	{
-		Zombie closestZombie = null;
-		float closestDistance = float.MaxValue;
-
-		foreach (Zombie zombie in nearbyZombies)
+		NavMeshHit hit;
+		if (NavMesh.SamplePosition(targetPosition, out hit, dashDistance, NavMesh.AllAreas))
 		{
-			if (zombie == null) continue;
+			targetPosition = hit.position;
+		}
 
-			float distance = Vector3.Distance(transform.position, zombie.transform.position);
-			if (distance < closestDistance && distance <= throwRange)
+		while (Time.time < startTime + dashDuration)
+		{
+			if (currentState != BossState.Dashing) yield break;
+
+			float t = (Time.time - startTime) / dashDuration;
+			Vector3 newPosition = Vector3.Lerp(startPosition, targetPosition, t);
+			navMeshAgent.Warp(newPosition);
+
+			CheckDashHit();
+			yield return null;
+		}
+
+		CompleteDash();
+	}
+
+	private void CheckDashHit()
+	{
+		if (playerHealth == null) return;
+
+		float distanceToPlayer = Vector3.Distance(transform.position, playerTransform.position);
+		if (distanceToPlayer <= attackRange * 1.5f)
+		{
+			Vector3 toPlayer = (playerTransform.position - transform.position).normalized;
+			float dot = Vector3.Dot(toPlayer, dashDirection);
+
+			if (dot > 0.7f)
 			{
-				closestDistance = distance;
-				closestZombie = zombie;
+				playerHealth.TakeDamage(dashDamage);
+
+				Rigidbody playerRb = playerTransform.GetComponent<Rigidbody>();
+				if (playerRb != null)
+				{
+					playerRb.AddForce(dashDirection * dashImpactForce, ForceMode.Impulse);
+				}
 			}
 		}
-
-		return closestZombie;
 	}
 
-	private void UpdateNearbyZombiesList()
+	private void CompleteDash()
 	{
-		nearbyZombies.Clear();
-		Collider[] hitColliders = Physics.OverlapSphere(transform.position, throwRange, zombieLayer);
+		isDashing = false;
+		navMeshAgent.isStopped = false;
+		lastDashTime = Time.time;
+		currentState = BossState.Chasing;
+	}
 
-		foreach (Collider col in hitColliders)
-		{
-			Zombie zombie = col.GetComponent<Zombie>();
-			if (zombie != null && zombie != this)
-			{
-				nearbyZombies.Add(zombie);
-			}
-		}
+	private void CancelDash()
+	{
+		isDashing = false;
+		navMeshAgent.isStopped = false;
+		currentState = BossState.Chasing;
 	}
 
 	private void MeleeAttack()
 	{
-		if (Time.time - lastMeleeAttackTime >= meleeCooldown)
+		if (Time.time - lastMeleeAttackTime >= meleeCooldown && !isAttackAnimationPlaying)
 		{
 			lastMeleeAttackTime = Time.time;
-
-			transform.LookAt(playerTransform);
+			currentState = BossState.Attacking;
+			isAttackAnimationPlaying = true;
 
 			if (animator != null)
 			{
 				animator.SetTrigger("Attack");
 			}
 
-			if (playerHealth != null)
+			if (attackSound != null)
 			{
-				playerHealth.TakeDamage(meleeDamage);
+				audioSource.PlayOneShot(attackSound);
 			}
 		}
+	}
+
+	public void OnAttackHit()
+	{
+		if (playerHealth != null && Vector3.Distance(transform.position, playerTransform.position) <= attackRange * 1.2f)
+		{
+			playerHealth.TakeDamage(meleeDamage);
+		}
+	}
+
+	public void OnAttackComplete()
+	{
+		isAttackAnimationPlaying = false;
+		currentState = BossState.Chasing;
 	}
 
 	private void SetRandomPatrolPoint()
 	{
 		Vector3 randomDirection = Random.insideUnitSphere * patrolRadius;
 		randomDirection += spawnPosition;
+		randomDirection.y = spawnPosition.y;
 
 		NavMeshHit hit;
 		if (NavMesh.SamplePosition(randomDirection, out hit, patrolRadius, NavMesh.AllAreas))
 		{
-			if (Vector3.Distance(transform.position, hit.position) >= patrolPointMinDistance)
+			float distance = Vector3.Distance(transform.position, hit.position);
+			if (distance >= patrolPointMinDistance)
 			{
 				currentPatrolPoint = hit.position;
 				navMeshAgent.SetDestination(currentPatrolPoint);
@@ -394,18 +377,15 @@ public class ZombieBoss : MonoBehaviour
 
 	private void UpdateAnimation()
 	{
-		if (animator != null)
-		{
-			bool isMoving = navMeshAgent.velocity.magnitude > 0.1f && currentState != BossState.PreparingThrow && currentState != BossState.Throwing;
-			animator.SetBool("IsMoving", isMoving);
-			animator.SetBool("IsChasing", currentState == BossState.Chasing);
-		}
-	}
+		if (animator == null) return;
 
-	// Called by animation event when throw is complete
-	public void OnThrowComplete()
-	{
-		// Can add additional logic here if needed
+		bool isMoving = navMeshAgent.velocity.magnitude > 0.1f &&
+					   currentState != BossState.PreparingDash &&
+					   currentState != BossState.Dashing &&
+					   currentState != BossState.Attacking;
+
+		animator.SetBool("IsMoving", isMoving);
+		animator.SetBool("IsChasing", currentState == BossState.Chasing);
 	}
 
 	private void OnDrawGizmosSelected()
@@ -416,50 +396,10 @@ public class ZombieBoss : MonoBehaviour
 		Gizmos.color = Color.red;
 		Gizmos.DrawWireSphere(transform.position, chaseRadius);
 
-		Gizmos.color = Color.magenta;
-		Gizmos.DrawWireSphere(transform.position, throwRange);
-
 		if (Application.isPlaying)
 		{
 			Gizmos.color = Color.blue;
 			Gizmos.DrawWireSphere(spawnPosition, patrolRadius);
 		}
-	}
-}
-
-// Helper component for thrown zombies
-public class ZombieProjectile : MonoBehaviour
-{
-	public int damage = 30;
-	public float impactForce = 10f;
-
-	private void OnCollisionEnter(Collision collision)
-	{
-		// Damage player if hit
-		PlayerHealth playerHealth = collision.gameObject.GetComponent<PlayerHealth>();
-		if (playerHealth != null)
-		{
-			playerHealth.TakeDamage(damage);
-
-			// Apply impact force
-			Rigidbody playerRb = collision.gameObject.GetComponent<Rigidbody>();
-			if (playerRb != null)
-			{
-				Vector3 forceDirection = (collision.transform.position - transform.position).normalized;
-				playerRb.AddForce(forceDirection * impactForce, ForceMode.Impulse);
-			}
-		}
-
-		// Destroy this component and re-enable zombie AI if it's still alive
-		Zombie zombie = GetComponent<Zombie>();
-		if (zombie != null)
-		{
-			Rigidbody rb = GetComponent<Rigidbody>();
-			if (rb != null) Destroy(rb);
-
-			zombie.enabled = true;
-		}
-
-		Destroy(this);
 	}
 }
