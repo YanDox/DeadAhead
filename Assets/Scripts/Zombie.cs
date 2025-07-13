@@ -160,11 +160,8 @@ public class Zombie : MonoBehaviour
 		if (Time.time - lastAttackTime >= attackCooldown)
 		{
 			lastAttackTime = Time.time;
-
-			// Поворот к цели
 			transform.LookAt(playerTransform);
 
-			// Анимация атаки
 			if (animator != null)
 			{
 				animator.SetTrigger("Attack");
@@ -176,15 +173,33 @@ public class Zombie : MonoBehaviour
 				playerHealth.TakeDamage(attackDamage);
 			}
 
-			// Атака компаньона (если в радиусе)
+			// Атака компаньона
 			if (companionHealth != null &&
 				Vector3.Distance(transform.position, companionHealth.transform.position) <= attackRange)
 			{
 				companionHealth.TakeDamage(attackDamage);
 			}
+
+			// Атака психа
+			Psycho psycho = FindPsychoInRange();
+			if (psycho != null)
+			{
+				psycho.TakeDamage(attackDamage);
+			}
 		}
 	}
-
+	private Psycho FindPsychoInRange()
+	{
+		Collider[] hitColliders = Physics.OverlapSphere(transform.position, attackRange);
+		foreach (var collider in hitColliders)
+		{
+			if (collider.CompareTag("Psycho"))
+			{
+				return collider.GetComponent<Psycho>();
+			}
+		}
+		return null;
+	}
 	private void SetRandomPatrolPoint()
 	{
 		Vector3 randomDirection = Random.insideUnitSphere * patrolRadius;
@@ -212,6 +227,7 @@ public class Zombie : MonoBehaviour
 			animator.SetBool("IsChasing", currentState == ZombieState.Chasing);
 		}
 	}
+	
 	public void ForceChasePlayer(Transform playerTarget)
 {
     if (playerTarget != null)
@@ -222,6 +238,7 @@ public class Zombie : MonoBehaviour
         navMeshAgent.SetDestination(playerTransform.position);
     }
 }
+
 
 	private void OnDrawGizmosSelected()
 	{
