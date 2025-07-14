@@ -1,113 +1,69 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class BusRepair : MonoBehaviour
 {
-	public int requiredParts = 5; // Всего нужно деталей
-	public int installedParts = 0; // Установлено деталей
-	public float repairTime = 5f; // Время установки одной детали
+    public int requiredParts = 5;
+    public int installedParts = 0;
+    public float repairTime = 20f;
+    public float repairRadius = 3f;
 
-	private float repairProgress = 0f;
-	private bool isPlayerNear = false;
-    private bool isCompanionNear = false;
-    private Inventory playerInventory;
-    private CompanionInventory companionInventory;
+    private float repairProgress = 0f;
+    private bool isRepairing = false;
 
-    void Update()
+    public Vector3 GetRepairPosition(Vector3 companionPosition)
     {
-        // Ремонт игроком
-        if (isPlayerNear && Input.GetKey(KeyCode.Y))
+        Vector3 directionToBus = (transform.position - companionPosition).normalized;
+
+        Vector3 surfacePoint = transform.position - directionToBus * repairRadius;
+
+        UnityEngine.AI.NavMeshHit navHit;
+        if (UnityEngine.AI.NavMesh.SamplePosition(surfacePoint, out navHit, repairRadius * 2, UnityEngine.AI.NavMesh.AllAreas))
         {
-            TryRepair(playerInventory);
+            return navHit.position;
         }
-        // Ремонт компаньоном
-        else if (isCompanionNear)
+
+        return transform.position - directionToBus * repairRadius;
+    }
+
+    public bool TryRepair(CompanionInventory companionInventory)
+    {
+        if (installedParts >= requiredParts)
         {
-            TryRepair(companionInventory);
+            Debug.Log("РђРІС‚РѕР±СѓСЃ СѓР¶Рµ РїРѕР»РЅРѕСЃС‚СЊСЋ РѕС‚СЂРµРјРѕРЅС‚РёСЂРѕРІР°РЅ!");
+            return false;
         }
-        else
+
+        if (companionInventory.items[CompanionInventory.BUS_PART] <= 0)
+        {
+            Debug.Log("РЈ РєРѕРјРїР°РЅСЊРѕРЅР° РЅРµС‚ РґРµС‚Р°Р»РµР№!");
+            return false;
+        }
+
+        if (!isRepairing)
+        {
+            isRepairing = true;
+        }
+
+        repairProgress += Time.deltaTime;
+
+        if (repairProgress >= repairTime)
         {
             repairProgress = 0f;
-        }
-    }
-
-    private void TryRepair(Inventory inventory)
-    {
-        if (installedParts < requiredParts && inventory != null && inventory.items[Inventory.BUS_PART] > 0)
-        {
-            repairProgress += Time.deltaTime;
-            if (repairProgress >= repairTime)
-            {
-                repairProgress = 0f;
-                inventory.UseItem(Inventory.BUS_PART);
-                installedParts++;
-                if (installedParts >= requiredParts)
-                {
-                    Debug.Log("Автобус отремонтирован!");
-                }
-            }
-        }
-    }
-
-    private void TryRepair(CompanionInventory inventory)
-    {
-        if (installedParts < requiredParts && inventory != null && inventory.items[CompanionInventory.BUS_PART] > 0)
-        {
-            repairProgress += Time.deltaTime;
-            if (repairProgress >= repairTime)
-            {
-                repairProgress = 0f;
-                inventory.UseItem(CompanionInventory.BUS_PART);
-                installedParts++;
-            }
-        }
-    }
-
-    void OnTriggerEnter(Collider other)
-    {
-        if (other.CompareTag("Player"))
-        {
-            isPlayerNear = true;
-            playerInventory = other.GetComponent<Inventory>();
-        }
-        else if (other.CompareTag("Companion"))
-        {
-            isCompanionNear = true;
-            companionInventory = other.GetComponent<CompanionInventory>();
-        }
-    }
-
-    void OnTriggerExit(Collider other)
-    {
-        if (other.CompareTag("Player"))
-        {
-            isPlayerNear = false;
-            repairProgress = 0f;
-        }
-        else if (other.CompareTag("Companion"))
-        {
-            isCompanionNear = false;
-            repairProgress = 0f;
-        }
-    }
-
-    public bool InstallPart(CompanionInventory companionInventory)
-    {
-        if (installedParts >= requiredParts) return false;
-
-        if (companionInventory != null && companionInventory.UseItem(CompanionInventory.BUS_PART))
-        {
+            companionInventory.UseItem(CompanionInventory.BUS_PART);
             installedParts++;
-            Debug.Log($"Деталь установлена! Осталось: {requiredParts - installedParts}");
+            Debug.Log($"РЈСЃС‚Р°РЅРѕРІР»РµРЅР° РґРµС‚Р°Р»СЊ ({installedParts}/{requiredParts})");
 
             if (installedParts >= requiredParts)
-            {
-                Debug.Log("Автобус полностью отремонтирован!");
-                // Дополнительные действия при завершении ремонта
-            }
+                Debug.Log("РђРІС‚РѕР±СѓСЃ РїРѕР»РЅРѕСЃС‚СЊСЋ РѕС‚СЂРµРјРѕРЅС‚РёСЂРѕРІР°РЅ!");
+                // Р—РґРµСЃСЊ РјРѕР¶РЅРѕ РґРѕР±Р°РІРёС‚СЊ Р·Р°РїСѓСЃРє РєР°С‚-СЃС†РµРЅС‹
             return true;
         }
         return false;
+    }
+
+    public void ResetRepair()
+    {
+        repairProgress = 0f;
+        isRepairing = false;
     }
 }

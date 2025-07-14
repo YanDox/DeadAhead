@@ -11,7 +11,6 @@ public class CompanionAI : MonoBehaviour
         GoingToWorkshop,
         Defense,
         Getaway,
-        TakePart,
         Repair,
         Retreating
     }
@@ -54,7 +53,10 @@ public class CompanionAI : MonoBehaviour
 
     [Header("Repair Settings")]
     public KeyCode transferPartKey = KeyCode.R;
+    private Vector3 currentRepairPoint;
     public float transferDistance = 3f;
+    public float repairStoppingDistance = 3f;
+    public float repairRadius = 5f;
 
     [Header("Rotation Settings")]
     public float facePlayerSpeed = 5f;
@@ -63,11 +65,11 @@ public class CompanionAI : MonoBehaviour
 
     private CompanionState currentState = CompanionState.Staying;
     private CompanionState stateBeforeReaction;
-    private CompanionState stateBeforeRepair;
     private float lastCheckTime;
     private float lastCollisionTime;
     private float lastReactionTime;
     private float nextAttackTime;
+    private float defaultStoppingDistance;
     private bool workshopDetected = false;
     private bool isManualStay = false;
     private bool isReactingToZombie = false;
@@ -96,6 +98,7 @@ public class CompanionAI : MonoBehaviour
         player = FindObjectOfType<SC_TPSController>();
         health = GetComponent<CompanionHealth>();
         inventory = GetComponent<CompanionInventory>();
+        defaultStoppingDistance = minFollowDistance;
         nextAttackTime = 0f;
         currentTarget = null;
 
@@ -157,9 +160,6 @@ public class CompanionAI : MonoBehaviour
                 UpdateDefense();
                 break;
             case CompanionState.Getaway:
-                break;
-            case CompanionState.TakePart:
-                UpdateTakePart();
                 break;
             case CompanionState.Repair:
                 UpdateRepair();
@@ -274,27 +274,29 @@ public class CompanionAI : MonoBehaviour
 
     private void FindWorkshop()
     {
-        GameObject workshopObj = GameObject.FindGameObjectWithTag("Workshop");
+        if (targetStayPoint != null && targetStayPoint.CompareTag("Workshop"))
+        {
+            workshop = targetStayPoint;
+            currentWorkshop = workshop.GetComponent<BusRepair>();
+            return;
+        }
 
-        if (workshopObj == null)
+        GameObject workshopObj = GameObject.FindGameObjectWithTag("Workshop");
+        if (workshopObj != null)
+        {
+            targetStayPoint = workshopObj.transform;
+            workshop = workshopObj.transform;
+            currentWorkshop = workshopObj.GetComponent<BusRepair>();
+        }
+        else
         {
             BusRepair busRepair = FindObjectOfType<BusRepair>();
             if (busRepair != null)
             {
-                workshopObj = busRepair.gameObject;
+                workshop = busRepair.transform;
+                targetStayPoint = workshop;
+                currentWorkshop = busRepair;
             }
-        }
-
-        if (workshopObj != null)
-        {
-            targetStayPoint = workshopObj.transform;
-            workshop = workshopObj.transform; // Важно: сохраняем в workshop!
-            currentWorkshop = workshopObj.GetComponent<BusRepair>();
-            Debug.Log($"Мастерская найдена: {workshopObj.name}");
-        }
-        else
-        {
-            Debug.LogWarning("Мастерская не найдена в сцене!");
         }
     }
 
@@ -600,161 +602,26 @@ public class CompanionAI : MonoBehaviour
     #endregion
 
 #region TakePart
-    private void UpdateTakePart()
-    {
-        
-    }
-    #endregion
-
-#region Repair
-    private void StartRepairProcess()
-    {
-        stateBeforeRepair = currentState;
-        stateBeforeReaction = currentState;
-
-        currentState = CompanionState.Repair;
-        Debug.Log("Компаньон начинает процесс ремонта в мастерской...");
-    }
-
-    private void UpdateRepair()
-    {
-        if (workshop == null)
-        {
-            FindRepairStation();
-            if (workshop == null)
-            {
-                currentState = stateBeforeReaction;
-                return;
-            }
-        }
-
-        float distanceToBus = Vector3.Distance(transform.position, workshop.position);
-        bool inPosition = distanceToBus <= agent.stoppingDistance + 0.5f;
-
-        if (inPosition)
-        {
-            agent.isStopped = true;
-            StartRepairing();
-        }
-        else
-        {
-            agent.isStopped = false;
-
-            // Проверяем возможность достижения цели
-            if (!agent.pathPending && agent.pathStatus == NavMeshPathStatus.PathPartial)
-            {
-                Debug.Log("Путь к мастерской заблокирован, выход из ремонта");
-                currentState = stateBeforeReaction;
-                return;
-            }
-
-            agent.SetDestination(workshop.position);
-            Debug.Log($"Компаньон будет ремонтировать автобус через ({distanceToBus:F1} метров)");
-        }
-    }
-
-    private void FindRepairStation()
-    {
-        if (targetStayPoint != null)
-        {
-            workshop = targetStayPoint;
-            currentWorkshop = targetStayPoint.GetComponent<BusRepair>();
-            return;
-        }
-
-        FindWorkshop();
-
-        if (targetStayPoint != null)
-        {
-            workshop = targetStayPoint;
-            currentWorkshop = targetStayPoint.GetComponent<BusRepair>();
-        }
-
-        if (workshop == null)
-        {
-            currentState = stateBeforeReaction;
-        }
-    }
-
-    private void StartRepairing()
-    {
-        if (inventory.items[CompanionInventory.BUS_PART] > 0 && currentWorkshop != null)
-        {
-            if (currentWorkshop.InstallPart(inventory))
-            {
-                Debug.Log("Компаньон установил деталь");
-
-                agent.isStopped = false;
-
-                // 1.Рассчитываем точку отхода вокруг мастерской
-                Vector3 randomDirection = Random.insideUnitSphere.normalized;
-                if (randomDirection == Vector3.zero)
-                {
-                    randomDirection = new Vector3(Random.Range(-1f, 1f), 0, Random.Range(-1f, 1f)).normalized;
-                }
-                Vector3 retreatPoint = workshop.position + randomDirection * stayPointRadius;
-
-                // 2. Проверяем доступность позиции на NavMesh
-                NavMeshHit hit;
-                if (NavMesh.SamplePosition(retreatPoint, out hit, stayPointRadius, NavMesh.AllAreas))
-                {
-                    agent.SetDestination(hit.position);
-                    agent.isStopped = false;
-                    currentState = CompanionState.Retreating;
-                    Debug.Log($"Компаньон отходит к точке: {hit.position}");
-                }
-                else
-                {
-                    Debug.LogWarning("Не удалось найти точку отхода на NavMesh");
-                    currentState = CompanionState.Staying;
-                }
-            }
-            else
-            {
-                Debug.Log("Сё");
-                currentState = stateBeforeReaction;
-            }
-        }
-        else
-        {
-            Debug.Log("Нема у нас запчастей");
-            currentState = stateBeforeReaction;
-        }
-    }
-
-    private void UpdateRetreating()
-    {
-        // Если агент еще рассчитывает путь - ждем
-        if (agent.pathPending) return;
-
-        // Проверяем, достиг ли компаньон точки отхода
-        if (agent.remainingDistance <= agent.stoppingDistance)
-        {
-            // Если агент уже на месте или не двигается
-            if (!agent.hasPath || agent.velocity.sqrMagnitude < 0.1f)
-            {
-                agent.isStopped = true;
-                currentState = CompanionState.Staying;
-                Debug.Log("Компаньон завершил отход и переходит в режим ожидания");
-            }
-        }
-        // Если путь заблокирован
-        else if (agent.pathStatus == NavMeshPathStatus.PathPartial)
-        {
-            Debug.Log("Путь отхода заблокирован, остаемся на месте");
-            agent.isStopped = true;
-            currentState = CompanionState.Staying;
-        }
-    }
 
     private void TryReceivePartFromPlayer()
     {
         if (player == null) return;
 
+        if (currentWorkshop != null && currentWorkshop.installedParts >= currentWorkshop.requiredParts)
+        {
+            Debug.Log("Автобус уже отремонтирован! Деталь не нужна.");
+            return;
+        }
+
         float distanceToPlayer = Vector3.Distance(transform.position, player.transform.position);
         if (distanceToPlayer > transferDistance) return;
 
         Inventory playerInventory = player.GetComponent<Inventory>();
+        if (inventory.items[CompanionInventory.BUS_PART] > 0)
+        {
+            Debug.Log("У компаньона уже есть деталь!");
+            return;
+        }
         if (playerInventory != null && playerInventory.items[Inventory.BUS_PART] > 0)
         {
             playerInventory.UseItem(Inventory.BUS_PART);
@@ -777,6 +644,138 @@ public class CompanionAI : MonoBehaviour
             Debug.Log("Деталей нема");
         }
     }
+    #endregion
+
+#region Repair
+    private void StartRepairProcess()
+    {
+        if (currentWorkshop != null && currentWorkshop.installedParts >= currentWorkshop.requiredParts)
+        {
+            Debug.Log("Автобус уже отремонтирован! Ремонт не требуется.");
+            return;
+        }
+
+        if (inventory.items[CompanionInventory.BUS_PART] <= 0) return;
+        agent.stoppingDistance = repairStoppingDistance;
+
+        currentState = CompanionState.Repair;
+        Debug.Log($"Начало ремонта. Предыдущее состояние стояния");
+    }
+
+    private void UpdateRepair()
+    {
+
+        if (workshop == null)
+        {
+            FindWorkshop();
+            if (workshop == null)
+            {
+                ExitRepairState();
+                return;
+            }
+        }
+
+        Vector3 repairPosition = currentWorkshop.GetRepairPosition(transform.position);
+
+        float distanceToBus = Vector3.Distance(transform.position, repairPosition);
+        bool inPosition = distanceToBus <= repairStoppingDistance;
+
+        if (currentWorkshop.installedParts >= currentWorkshop.requiredParts)
+        {
+            Debug.Log("Ремонт автобуса завершен!");
+            ExitRepairState();
+            return;
+        }
+
+        if (inventory.items[CompanionInventory.BUS_PART] <= 0)
+        {
+            Debug.Log("Детали закончились! Прерывание ремонта.");
+            ExitRepairState();
+            return;
+        }
+
+        if (inPosition)
+        {
+            agent.isStopped = true;
+            Debug.Log("В позиции для ремонта...");
+
+            // Устанавливаем деталь
+            if (currentWorkshop.TryRepair(inventory))
+            {
+                Debug.Log("Деталь успешно установлена");
+                ExitRepairState();
+            }
+        }
+        else
+        {
+            Debug.Log($"Движение к точке ремонта (расстояние: {distanceToBus:F1})");
+            agent.isStopped = false;
+            agent.SetDestination(repairPosition);
+
+            // Простая проверка застревания
+            if (agent.velocity.sqrMagnitude < 0.1f && distanceToBus > 1f)
+            {
+                Debug.Log("Перенаправление к новой точке ремонта");
+                repairPosition = currentWorkshop.GetRepairPosition(transform.position);
+                agent.SetDestination(repairPosition);
+            }
+        }
+    }
+
+    private void ExitRepairState()
+    {
+        if (currentWorkshop != null)
+        {
+            currentWorkshop.ResetRepair();
+        }
+
+        agent.stoppingDistance = defaultStoppingDistance;
+
+        RetreatFromBus();
+    }
+    #endregion
+
+#region Retreating
+    private void RetreatFromBus()
+    {
+        Debug.Log("Отход от автобуса после ремонта");
+
+        Vector3 retreatDirection = (transform.position - workshop.position).normalized;
+        Vector3 retreatPoint = transform.position + retreatDirection * stayPointRadius;
+
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(retreatPoint, out hit, stayPointRadius, NavMesh.AllAreas))
+        {
+            agent.stoppingDistance = 0;
+            agent.isStopped = false;
+            agent.SetDestination(hit.position);
+            currentState = CompanionState.Retreating;
+            Debug.Log($"Отход к точке: {hit.position}");
+        }
+        else
+        {
+            Debug.Log("Не удалось найти точку отхода, возврат в обычный режим");
+            currentState = CompanionState.Staying;
+        }
+    }
+
+    private void UpdateRetreating()
+    {
+        if (agent.pathPending) return;
+        Debug.Log($"Отход от автобуса... Осталось: {agent.remainingDistance:F1}m");
+
+        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
+        {
+            if (!agent.hasPath || agent.velocity.sqrMagnitude == 0f)
+            {
+                agent.isStopped = true;
+                agent.stoppingDistance = defaultStoppingDistance;
+                currentState = CompanionState.Staying;
+                Debug.Log("Отход завершен. Возврат в состояние стояния");
+            }
+        }
+    }
+
     #endregion
 
 #region Utils
