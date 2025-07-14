@@ -63,6 +63,11 @@ public class CompanionAI : MonoBehaviour
     private const float MODEL_ROTATION_CORRECTION = -90f;
     private bool forceRotationToMovement = false;
 
+    [Header("Psycho Reaction Settings")]
+    public float psychoDetectionRadius = 20f;
+    public float psychoEscapeDistance = 35f;
+    public LayerMask psychoLayerMask;
+
     private CompanionState currentState = CompanionState.Staying;
     private CompanionState stateBeforeReaction;
     private float lastCheckTime;
@@ -93,7 +98,7 @@ public class CompanionAI : MonoBehaviour
 
     void Start()
     {
-        StartCoroutine(ZombieCheckRoutine());
+        StartCoroutine(ThreatCheckRoutine());
         FindWorkshop();
         player = FindObjectOfType<SC_TPSController>();
         health = GetComponent<CompanionHealth>();
@@ -399,20 +404,23 @@ public class CompanionAI : MonoBehaviour
     #endregion
 
 #region Getaway
-    private IEnumerator EscapeFromZombie(Transform zombieTarget)
+    private IEnumerator EscapeFromThreat(Transform threatTarget)
     {
-        if (zombieTarget == null)
+        if (threatTarget == null)
         {
             isReactingToZombie = false;
             yield break;
         }
 
+        currentState = CompanionState.Getaway;
+        forceRotationToMovement = true;
+
         // Расчет точки побега
-        Vector3 escapeDirection = zombieTarget != null
-            ? (transform.position - zombieTarget.position).normalized
+        Vector3 escapeDirection = threatTarget != null
+            ? (transform.position - threatTarget.position).normalized
             : -transform.forward;
 
-        Vector3 desiredEscapePoint = transform.position + escapeDirection * stopDistance * 2;
+        Vector3 desiredEscapePoint = transform.position + escapeDirection * psychoEscapeDistance;
 
         Vector3 finalEscapePoint = desiredEscapePoint;
         NavMeshHit hit;
@@ -427,11 +435,20 @@ public class CompanionAI : MonoBehaviour
         float escapeTimer = 0f;
         while ((agent.pathPending || agent.remainingDistance > 0.5f) && escapeTimer < 5f)
         {
-            if (agent.velocity.sqrMagnitude > 0.1f)
+            if (agent.velocity.sqrMagnitude < 0.1f)
             {
-                escapeTimer += Time.deltaTime;
-                yield return null;
+                Vector3 newEscapeDir = (transform.position - threatTarget.position).normalized;
+                Vector3 newEscapePoint = transform.position + newEscapeDir * psychoEscapeDistance;
+
+                NavMeshHit newHit;
+                if (NavMesh.SamplePosition(newEscapePoint, out newHit, 5.0f, NavMesh.AllAreas))
+                {
+                    agent.SetDestination(newHit.position);
+                }
             }
+
+            escapeTimer += Time.deltaTime;
+            yield return null;
         }
 
         forceRotationToMovement = false;
@@ -439,20 +456,60 @@ public class CompanionAI : MonoBehaviour
         currentState = stateBeforeReaction;
         escapeRoutine = null;
     }
-#endregion
+    #endregion
+
+#region PsychoReaction
+    private Transform FindNearestPsychoInRadius(float radius)
+    {
+        Collider[] colliders = Physics.OverlapSphere(
+            transform.position,
+            radius,
+            psychoLayerMask
+        );
+
+        Transform nearest = null;
+        float minDistance = Mathf.Infinity;
+
+        foreach (var col in colliders)
+        {
+            if (!col.gameObject.activeInHierarchy) continue;
+
+            float distance = Vector3.Distance(transform.position, col.transform.position);
+            if (distance < minDistance && HasLineOfSight(col.transform))
+            {
+                minDistance = distance;
+                nearest = col.transform;
+            }
+        }
+        return nearest;
+    }
+
+    private void ReactToPsycho(Transform psycho)
+    {
+        if (isReactingToZombie) return;
+
+        isReactingToZombie = true;
+        lastReactionTime = Time.time;
+        stateBeforeReaction = currentState;
+
+        Debug.Log("Обнаружен психопат! Убегаем!");
+        if (escapeRoutine != null) StopCoroutine(escapeRoutine);
+        escapeRoutine = StartCoroutine(EscapeFromThreat(psycho));
+    }
+    #endregion
 
 #region ZombieReaction
-    IEnumerator ZombieCheckRoutine()
+    IEnumerator ThreatCheckRoutine()
     {
         while (true)
         {
             if (currentState != CompanionState.GoingToWorkshop)
-                CheckZombieThreat();
+                CheckThreats();
             yield return new WaitForSeconds(reactionCooldown);
         }
     }
 
-    private void CheckZombieThreat()
+    private void CheckThreats()
     {
         if (Time.time - lastReactionTime < reactionCooldown || isReactingToZombie)
             return;
@@ -460,6 +517,13 @@ public class CompanionAI : MonoBehaviour
         if (health.isDead)
         {
             agent.isStopped = true;
+            return;
+        }
+
+        Transform nearestPsycho = FindNearestPsychoInRadius(psychoDetectionRadius);
+        if (nearestPsycho != null && nearestPsycho.gameObject.activeInHierarchy)
+        {
+            ReactToPsycho(nearestPsycho);
             return;
         }
 
@@ -563,7 +627,7 @@ public class CompanionAI : MonoBehaviour
             StopCoroutine(escapeRoutine);
         }
 
-        escapeRoutine = StartCoroutine(EscapeFromZombie(zombie));
+        escapeRoutine = StartCoroutine(EscapeFromThreat(zombie));
     }
 
     private IEnumerator StartNothing(Transform zombie)
@@ -899,6 +963,9 @@ public class CompanionAI : MonoBehaviour
 
         Gizmos.color = new Color(1, 0.5f, 0);
         Gizmos.DrawWireSphere(transform.position, zombieDetectionRadius);
+
+        Gizmos.color = Color.magenta;
+        Gizmos.DrawWireSphere(transform.position, psychoDetectionRadius);
     }
 }
 #endregion
