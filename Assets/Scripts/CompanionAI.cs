@@ -458,7 +458,7 @@ public class CompanionAI : MonoBehaviour
     }
     #endregion
 
-#region PsychoReaction
+#region RanAwayReaction
     private Transform FindNearestPsychoInRadius(float radius)
     {
         Collider[] colliders = Physics.OverlapSphere(
