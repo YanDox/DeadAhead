@@ -132,6 +132,11 @@ public class CompanionAI : MonoBehaviour
             return;
         }
 
+        if (currentState != CompanionState.Repair && !health.isDead)
+        {
+            CheckPsychoThreatImmediately();
+        }
+
         if (!isReactingToZombie && Input.GetKeyDown(stayToggleKey))
         {
             ToggleFollowMode();
@@ -492,13 +497,37 @@ public class CompanionAI : MonoBehaviour
         lastReactionTime = Time.time;
         stateBeforeReaction = currentState;
 
+        if (currentState != CompanionState.Repair)
+        {
+            agent.isStopped = false;
+            agent.speed = movementSpeed;
+        }
+
         Debug.Log("Обнаружен психопат! Убегаем!");
         if (escapeRoutine != null) StopCoroutine(escapeRoutine);
         escapeRoutine = StartCoroutine(EscapeFromThreat(psycho));
     }
+
+    private void CheckPsychoThreatImmediately()
+    {
+        if (isReactingToZombie && currentState == CompanionState.Getaway) return;
+
+        Transform nearestPsycho = FindNearestPsychoInRadius(psychoDetectionRadius);
+        if (nearestPsycho != null && nearestPsycho.gameObject.activeInHierarchy)
+        {
+            if (isReactingToZombie)
+            {
+                if (attackRoutine != null) StopCoroutine(attackRoutine);
+                if (escapeRoutine != null) StopCoroutine(escapeRoutine);
+                if (nothingRoutine != null) StopCoroutine(nothingRoutine);
+            }
+
+            ReactToPsycho(nearestPsycho);
+        }
+    }
     #endregion
 
-#region ZombieReaction
+    #region ZombieReaction
     IEnumerator ThreatCheckRoutine()
     {
         while (true)
