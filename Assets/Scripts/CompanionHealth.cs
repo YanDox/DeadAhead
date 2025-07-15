@@ -1,62 +1,86 @@
 using UnityEngine;
+using System.Collections;
 
 public class CompanionHealth : MonoBehaviour, IEntity
 {
-	[Header("Health Settings")]
-	public int maxHealth = 80;
-	public int currentHealth;
-	public float deathAnimationTime = 2f;
-	public GameObject deathEffect;
-	public GameObject zombiePrefab; // Префаб зомби для замены
+    [Header("Health Settings")]
+    public int maxHealth = 80;
+    public int currentHealth;
+    public float deathAnimationTime = 2f;
+    public GameObject deathEffect;
+    public GameObject zombiePrefab; // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     public bool isDead = false;
 
     private CompanionAI companionAI;
 
-	void Start()
-	{
-		currentHealth = maxHealth;
-		companionAI = GetComponent<CompanionAI>();
-	}
+    void Start()
+    {
+        currentHealth = maxHealth;
+        companionAI = GetComponent<CompanionAI>();
+    }
 
-	public void TakeDamage(int damage)
-	{
-		if (isDead) return;
+    public void TakeDamage(int damage)
+    {
+        if (isDead) return;
 
-		currentHealth -= damage;
+        currentHealth -= damage;
 
-		if (currentHealth <= 0)
-		{
-			Die();
-		}
-	}
+        if (currentHealth <= 0)
+        {
+            Die();
+        }
+    }
 
-	public void ApplyDamage(float damage)
-	{
-		TakeDamage((int)damage);
-	}
+    public void ApplyDamage(float damage)
+    {
+        TakeDamage((int)damage);
+    }
 
-	void Die()
-	{
-		isDead = true;
+    void Die()
+    {
+        isDead = true;
 
-		// Отключаем компоненты компаньона
-		if (companionAI != null) companionAI.enabled = false;
-		var collider = GetComponent<Collider>();
-		if (collider != null) collider.enabled = false;
+        if (companionAI != null) companionAI.enabled = false;
+        var collider = GetComponent<Collider>();
+        if (collider != null) collider.enabled = false;
 
-		// Эффект смерти
-		if (deathEffect != null)
-		{
-			Instantiate(deathEffect, transform.position, Quaternion.identity);
-		}
+        if (deathEffect != null)
+        {
+            Instantiate(deathEffect, transform.position, Quaternion.identity);
+        }
 
-		// Заменяем на зомби
-		if (zombiePrefab != null)
-		{
-			Instantiate(zombiePrefab, transform.position, transform.rotation);
-		}
+        StartCoroutine(ReplaceWithZombieAfterDelay());
+    }
 
-		// Уничтожаем компаньона
-		Destroy(gameObject, deathAnimationTime);
-	}
+    IEnumerator ReplaceWithZombieAfterDelay()
+    {
+        yield return new WaitForSeconds(deathAnimationTime);
+
+        if (zombiePrefab != null)
+        {
+            GameObject zombieInstance = Instantiate(zombiePrefab, transform.position, transform.rotation);
+            zombieInstance.SetActive(false);
+
+            if (FindNearestNavMeshPoint(transform.position, 2f, out Vector3 spawnPosition))
+            {
+                zombieInstance.transform.position = spawnPosition;
+            }
+
+            zombieInstance.SetActive(true);
+        }
+
+        Destroy(gameObject);
+    }
+
+    bool FindNearestNavMeshPoint(Vector3 position, float maxDistance, out Vector3 result)
+    {
+        if (UnityEngine.AI.NavMesh.SamplePosition(position, out UnityEngine.AI.NavMeshHit hit, maxDistance, UnityEngine.AI.NavMesh.AllAreas))
+        {
+            result = hit.position;
+            return true;
+        }
+
+        result = position;
+        return false;
+    }
 }
