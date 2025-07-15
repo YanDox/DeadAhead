@@ -142,6 +142,9 @@ MonoBehaviour:
   attackRange: 1.5
   attackDamage: 15
   attackCooldown: 1
+  companionLayer:
+    serializedVersion: 2
+    m_Bits: 128
 --- !u!195 &9011643454315067474
 NavMeshAgent:
   m_ObjectHideFlags: 0
