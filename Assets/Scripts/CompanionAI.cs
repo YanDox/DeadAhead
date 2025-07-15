@@ -527,7 +527,7 @@ public class CompanionAI : MonoBehaviour
     }
     #endregion
 
-    #region ZombieReaction
+#region ZombieReaction
     IEnumerator ThreatCheckRoutine()
     {
         while (true)

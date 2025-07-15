@@ -56,9 +56,12 @@ MonoBehaviour:
   attackRange: 2
   attackDamage: 20
   attackCooldown: 1.5
-  enemyLayers:
+  companionLayer:
     serializedVersion: 2
-    m_Bits: 141
+    m_Bits: 128
+  zombieLayer:
+    serializedVersion: 2
+    m_Bits: 8
 --- !u!114 &3351223053522793240
 MonoBehaviour:
   m_ObjectHideFlags: 0
