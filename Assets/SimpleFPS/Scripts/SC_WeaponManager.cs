@@ -7,7 +7,7 @@ public class SC_WeaponManager : MonoBehaviour
 	public SC_Weapon secondaryWeapon;
 	private Inventory playerInv;
 	public bool isUltimateActive = false;
-	public SC_CameraCollision cameraCollision; // Добавлена ссылка на SC_CameraCollision
+	public SC_CameraCollision cameraCollision;
 
 	[HideInInspector]
 	public SC_Weapon selectedWeapon;
@@ -20,11 +20,14 @@ public class SC_WeaponManager : MonoBehaviour
 			playerInv = FindObjectOfType<Inventory>();
 		}
 
-		// Получаем ссылку на SC_CameraCollision, если не установлена в инспекторе
 		if (cameraCollision == null)
 		{
 			cameraCollision = FindObjectOfType<SC_CameraCollision>();
 		}
+
+		// Настройка оружия
+		primaryWeapon.infiniteAmmo = false; // Основное оружие с ограниченными патронами
+		secondaryWeapon.infiniteAmmo = true; // Второе оружие с бесконечными патронами
 
 		primaryWeapon.ActivateWeapon(true);
 		secondaryWeapon.ActivateWeapon(false);
@@ -33,13 +36,13 @@ public class SC_WeaponManager : MonoBehaviour
 		secondaryWeapon.manager = this;
 	}
 
+	// Остальной код без изменений
 	void Update()
 	{
 		HandleWeaponSwitch();
 
 		if (isUltimateActive && selectedWeapon == secondaryWeapon)
 		{
-			// Принудительно включаем прицеливание во время ульты
 			if (cameraCollision != null && !cameraCollision.IsAiming)
 			{
 				cameraCollision.ForceAim(true);
@@ -53,6 +56,11 @@ public class SC_WeaponManager : MonoBehaviour
 		if (Input.GetKeyDown(KeyCode.Alpha1) && !isUltimateActive)
 		{
 			SelectWeapon(primaryWeapon);
+		}
+
+		if (Input.GetKeyDown(KeyCode.Alpha2) && !isUltimateActive)
+		{
+			SelectWeapon(secondaryWeapon);
 		}
 
 		if (Input.GetKeyDown(KeyCode.U))
@@ -74,7 +82,6 @@ public class SC_WeaponManager : MonoBehaviour
 			playerInv.DeactivateUltimate();
 		}
 
-		// Возвращаем прицеливание в нормальное состояние после ульты
 		if (cameraCollision != null)
 		{
 			cameraCollision.ForceAim(false);

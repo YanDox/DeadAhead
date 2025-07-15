@@ -8,31 +8,34 @@ public class SC_Weapon : MonoBehaviour
 	public float fireRate = 0.1f;
 	public GameObject bulletPrefab;
 	public Transform firePoint;
-	public int bulletsPerMagazine = 30;
+	public int magazineSize = 30;
+	public int currentBulletsInMagazine = 0;
 	public float timeToReload = 1.5f;
 	public float weaponDamage = 15;
 	public AudioClip fireAudio;
 	public AudioClip reloadAudio;
+	public int ammoType = Inventory.RIFLE_AMMO;
+	public bool infiniteAmmo = false; // Добавлено поле для бесконечных патронов
 
 	[HideInInspector]
 	public SC_WeaponManager manager;
 
 	float nextFireTime = 0;
 	bool canFire = true;
-	int bulletsPerMagazineDefault = 0;
 	AudioSource audioSource;
+	Inventory inventory;
 
 	void Start()
 	{
-		bulletsPerMagazineDefault = bulletsPerMagazine;
 		audioSource = GetComponent<AudioSource>();
 		audioSource.playOnAwake = false;
 		audioSource.spatialBlend = 1f;
+		inventory = FindObjectOfType<Inventory>();
+		currentBulletsInMagazine = magazineSize;
 	}
 
 	void Update()
 	{
-		// Проверяем, находится ли игрок в режиме прицеливания или активна ульта
 		bool canShoot = manager.cameraCollision.IsAiming || manager.isUltimateActive;
 
 		if (canShoot)
@@ -47,7 +50,7 @@ public class SC_Weapon : MonoBehaviour
 			}
 		}
 
-		if (Input.GetKeyDown(KeyCode.R) && canFire)
+		if (Input.GetKeyDown(KeyCode.R) && canFire && currentBulletsInMagazine < magazineSize && !infiniteAmmo)
 		{
 			StartCoroutine(Reload());
 		}
@@ -61,7 +64,7 @@ public class SC_Weapon : MonoBehaviour
 			{
 				nextFireTime = Time.time + fireRate;
 
-				if (bulletsPerMagazine > 0)
+				if (currentBulletsInMagazine > 0 || infiniteAmmo)
 				{
 					Vector3 firePointPointerPosition = manager.playerCamera.transform.position + manager.playerCamera.transform.forward * 100;
 					RaycastHit hit;
@@ -75,9 +78,13 @@ public class SC_Weapon : MonoBehaviour
 					SC_Bullet bullet = bulletObject.GetComponent<SC_Bullet>();
 					bullet.SetDamage(weaponDamage);
 
-					bulletsPerMagazine--;
-					//audioSource.clip = fireAudio;
-					//audioSource.Play();
+					if (!infiniteAmmo)
+					{
+						currentBulletsInMagazine--;
+					}
+
+					audioSource.clip = fireAudio;
+					audioSource.Play();
 				}
 				else
 				{
@@ -93,7 +100,16 @@ public class SC_Weapon : MonoBehaviour
 		audioSource.clip = reloadAudio;
 		audioSource.Play();
 		yield return new WaitForSeconds(timeToReload);
-		bulletsPerMagazine = bulletsPerMagazineDefault;
+
+		if (!infiniteAmmo && inventory != null && inventory.items[ammoType] > 0)
+		{
+			int bulletsNeeded = magazineSize - currentBulletsInMagazine;
+			int bulletsToLoad = Mathf.Min(bulletsNeeded, inventory.items[ammoType]);
+
+			currentBulletsInMagazine += bulletsToLoad;
+			inventory.items[ammoType] -= bulletsToLoad;
+		}
+
 		canFire = true;
 	}
 
