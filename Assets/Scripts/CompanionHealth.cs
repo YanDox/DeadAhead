@@ -6,10 +6,14 @@ public class CompanionHealth : MonoBehaviour, IEntity
     [Header("Health Settings")]
     public int maxHealth = 80;
     public int currentHealth;
-    public float deathAnimationTime = 2f;
+    public float deathAnimationTime = 1f;
     public GameObject deathEffect;
-    public GameObject zombiePrefab; // ������ ����� ��� ������
+    public GameObject zombiePrefab;
     public bool isDead = false;
+
+    [Header("Damage Feedback")]
+    public GameObject damageEffectPrefab;
+    public float effectDuration = 0.3f;
 
     private CompanionAI companionAI;
 
@@ -29,11 +33,24 @@ public class CompanionHealth : MonoBehaviour, IEntity
         {
             Die();
         }
+        else
+        {
+            ShowDamageEffect();
+        }
     }
 
     public void ApplyDamage(float damage)
     {
         TakeDamage((int)damage);
+    }
+
+    void ShowDamageEffect()
+    {
+        if (damageEffectPrefab != null)
+        {
+            GameObject effect = Instantiate(damageEffectPrefab, transform.position, Quaternion.identity, transform);
+            Destroy(effect, effectDuration);
+        }
     }
 
     void Die()

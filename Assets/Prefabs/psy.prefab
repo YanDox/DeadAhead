@@ -79,7 +79,7 @@ MonoBehaviour:
   deathAnimationTime: 1.5
   deathEffect: {fileID: 0}
   Cost: 10
-  damageEffectPrefab: {fileID: 0}
+  damageEffectPrefab: {fileID: 3548588485384254792, guid: 2f9e7dc163581394da1e00b561eed65d, type: 3}
   effectDuration: 0.3
 --- !u!136 &4954092897927044438
 CapsuleCollider:

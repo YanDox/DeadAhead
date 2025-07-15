@@ -23,7 +23,7 @@ public abstract class EnemyAI : MonoBehaviour
     public float attackCooldown = 1f;
     
     [Header("Target Settings")]
-    public LayerMask companionLayer; // Слой компаньонов
+    public LayerMask companionLayer;
     
     protected NavMeshAgent navMeshAgent;
     protected Transform currentTarget;

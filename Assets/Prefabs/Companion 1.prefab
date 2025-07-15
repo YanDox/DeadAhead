@@ -204,6 +204,8 @@ MonoBehaviour:
   deathEffect: {fileID: 0}
   zombiePrefab: {fileID: 9011643454315067480, guid: a89256f0f76db374d819814d82e7ddc6, type: 3}
   isDead: 0
+  damageEffectPrefab: {fileID: 3548588485384254792, guid: 2f9e7dc163581394da1e00b561eed65d, type: 3}
+  effectDuration: 0.3
 --- !u!114 &-1845966913971746459
 MonoBehaviour:
   m_ObjectHideFlags: 0
