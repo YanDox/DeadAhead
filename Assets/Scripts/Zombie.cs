@@ -10,7 +10,7 @@ public class Zombie : MonoBehaviour
         Returning
     }
 
-#region Settings
+    #region Settings
     [Header("Settings")]
     public float detectionRadius = 10f;
     public float chaseRadius = 15f;
@@ -18,24 +18,28 @@ public class Zombie : MonoBehaviour
     public float patrolPointMinDistance = 5f;
     public float patrolWaitTime = 2f;
     public float attackRange = 1.5f;
-    public int attackDamage = 15;
     public float attackCooldown = 1f;
+    public int attackDamage = 15;
     public LayerMask companionLayer;
 
+    private ZombieState currentState = ZombieState.Patrolling;
     private NavMeshAgent navMeshAgent;
     private Transform playerTransform;
-    private PlayerHealth playerHealth;
+    private Transform psychoTransform;
     private Transform currentTarget;
-    private ZombieState currentState = ZombieState.Patrolling;
+    private EnemyHealth psychoHealth;
+    private PlayerHealth playerHealth;
     private Vector3 spawnPosition;
     private Vector3 currentPatrolPoint;
-    private float waitTimer = 0f;
     private bool isWaiting = false;
+    private float waitTimer = 0f;
     private float lastAttackTime;
+    private float psychoSearchTimer;
+    private const float PSYCHO_SEARCH_INTERVAL = 2f;
     private Animator animator;
     #endregion
 
-#region Start
+    #region Start
     void Start()
     {
         navMeshAgent = GetComponent<NavMeshAgent>();
@@ -44,26 +48,16 @@ public class Zombie : MonoBehaviour
         InitializeTargets();
         SetRandomPatrolPoint();
     }
-
-    void InitializeTargets()
-    {
-        var playerController = FindObjectOfType<SC_TPSController>();
-        if (playerController != null)
-        {
-            playerTransform = playerController.transform;
-            playerHealth = playerController.GetComponent<PlayerHealth>();
-            currentTarget = playerTransform;
-        }
-    }
     #endregion
 
-#region Update
+    #region Update
     void Update()
     {
-        if (playerTransform == null)
+        psychoSearchTimer += Time.deltaTime;
+        if (psychoSearchTimer >= PSYCHO_SEARCH_INTERVAL)
         {
             InitializeTargets();
-            if (playerTransform == null) return;
+            psychoSearchTimer = 0f;
         }
 
         UpdateCurrentTarget();
@@ -91,9 +85,10 @@ public class Zombie : MonoBehaviour
     }
     #endregion
 
-#region Target
+    #region Target
     private void UpdateCurrentTarget()
     {
+        // 1. Всегда сначала проверяем компаньонов (высший приоритет)
         Collider[] companions = Physics.OverlapSphere(
             transform.position,
             detectionRadius,
@@ -101,17 +96,17 @@ public class Zombie : MonoBehaviour
         );
 
         Transform closestCompanion = null;
-        float closestDistance = float.MaxValue;
+        float closestCompanionDistance = float.MaxValue;
 
         foreach (var col in companions)
         {
-            // Проверяем наличие компонента, но не проверяем "живость"
-            if (col.GetComponent<CompanionHealth>() != null)
+            CompanionHealth companion = col.GetComponent<CompanionHealth>();
+            if (companion != null && companion.currentHealth > 0)
             {
                 float distance = Vector3.Distance(transform.position, col.transform.position);
-                if (distance < closestDistance)
+                if (distance < closestCompanionDistance)
                 {
-                    closestDistance = distance;
+                    closestCompanionDistance = distance;
                     closestCompanion = col.transform;
                 }
             }
@@ -120,32 +115,72 @@ public class Zombie : MonoBehaviour
         if (closestCompanion != null)
         {
             currentTarget = closestCompanion;
+            return;
         }
-        else if (playerHealth != null)
+
+        // 2. Проверяем игрока (второй приоритет)
+        float playerDistance = float.MaxValue;
+        bool playerAlive = false;
+
+        if (playerTransform != null && playerHealth != null)
+        {
+            playerDistance = Vector3.Distance(transform.position, playerTransform.position);
+            playerAlive = playerHealth.currentHealth > 0;
+        }
+
+        if (playerAlive && playerDistance <= detectionRadius)
         {
             currentTarget = playerTransform;
+            return;
         }
-        else
+
+        // 3. Проверяем психа (низший приоритет)
+        float psychoDistance = float.MaxValue;
+        bool psychoAlive = false;
+
+        if (psychoTransform != null && psychoHealth != null)
         {
-            currentTarget = null;
+            psychoDistance = Vector3.Distance(transform.position, psychoTransform.position);
+            psychoAlive = psychoHealth.currentHealth > 0;
         }
+
+        if (psychoAlive && psychoDistance <= detectionRadius)
+        {
+            currentTarget = psychoTransform;
+            return;
+        }
+
+        // 4. Если нет подходящих целей
+        currentTarget = null;
     }
 
-    private Psycho FindPsychoInRange()
+    void InitializeTargets()
     {
-        Collider[] hitColliders = Physics.OverlapSphere(transform.position, attackRange);
-        foreach (var collider in hitColliders)
+        // Инициализация игрока (один раз)
+        if (playerTransform == null)
         {
-            if (collider.CompareTag("Psycho"))
+            var playerController = FindObjectOfType<SC_TPSController>();
+            if (playerController != null)
             {
-                return collider.GetComponent<Psycho>();
+                playerTransform = playerController.transform;
+                playerHealth = playerController.GetComponent<PlayerHealth>();
             }
         }
-        return null;
+
+        // Периодический поиск психа
+        if (psychoHealth == null)
+        {
+            GameObject psychoObject = GameObject.FindGameObjectWithTag("Psycho");
+            if (psychoObject != null)
+            {
+                psychoTransform = psychoObject.transform;
+                psychoHealth = psychoObject.GetComponent<EnemyHealth>();
+            }
+        }
     }
     #endregion
 
-#region Patrolling
+    #region Patrolling
     private void UpdatePatrolling(float distanceToTarget)
     {
         if (distanceToTarget <= detectionRadius && currentTarget != null)
@@ -198,10 +233,33 @@ public class Zombie : MonoBehaviour
     }
     #endregion
 
-#region Chasing
+    #region Chasing
     private void UpdateChasing(float distanceToTarget)
     {
         if (currentTarget == null || distanceToTarget > chaseRadius)
+        {
+            currentState = ZombieState.Returning;
+            navMeshAgent.SetDestination(spawnPosition);
+            return;
+        }
+
+        // Проверяем живость цели
+        bool targetAlive = true;
+        if (currentTarget == playerTransform && playerHealth != null)
+        {
+            targetAlive = playerHealth.currentHealth > 0;
+        }
+        else if (currentTarget == psychoTransform && psychoHealth != null)
+        {
+            targetAlive = psychoHealth.currentHealth > 0;
+        }
+        else
+        {
+            CompanionHealth companion = currentTarget.GetComponent<CompanionHealth>();
+            if (companion != null) targetAlive = companion.currentHealth > 0;
+        }
+
+        if (!targetAlive)
         {
             currentState = ZombieState.Returning;
             navMeshAgent.SetDestination(spawnPosition);
@@ -218,28 +276,29 @@ public class Zombie : MonoBehaviour
 
     private void AttackTarget()
     {
-        if (Time.time - lastAttackTime >= attackCooldown)
+        if (Time.time - lastAttackTime >= attackCooldown && currentTarget != null)
         {
             lastAttackTime = Time.time;
-            if (currentTarget != null) transform.LookAt(currentTarget);
+            transform.LookAt(currentTarget);
 
             if (animator != null)
             {
                 animator.SetTrigger("Attack");
             }
 
-            // Атака основной цели
-            if (currentTarget != null)
+            // Основная атака
+            CompanionHealth companion = currentTarget.GetComponent<CompanionHealth>();
+            if (companion != null)
             {
-                CompanionHealth companion = currentTarget.GetComponent<CompanionHealth>();
-                if (companion != null)
-                {
-                    companion.TakeDamage(attackDamage);
-                }
-                else if (currentTarget == playerTransform && playerHealth != null)
-                {
-                    playerHealth.TakeDamage(attackDamage);
-                }
+                companion.TakeDamage(attackDamage);
+            }
+            else if (currentTarget == playerTransform && playerHealth != null)
+            {
+                playerHealth.TakeDamage(attackDamage);
+            }
+            else if (currentTarget == psychoTransform && psychoHealth != null)
+            {
+                psychoHealth.TakeDamage(attackDamage);
             }
 
             // Атака всех компаньонов в радиусе
@@ -251,17 +310,20 @@ public class Zombie : MonoBehaviour
 
             foreach (var col in companionsInRange)
             {
-                CompanionHealth companion = col.GetComponent<CompanionHealth>();
-                if (companion != null)
+                if (col.transform != currentTarget) // Не атакуем основную цель повторно
                 {
-                    companion.TakeDamage(attackDamage);
+                    CompanionHealth additionalCompanion = col.GetComponent<CompanionHealth>();
+                    if (additionalCompanion != null)
+                    {
+                        additionalCompanion.TakeDamage(attackDamage);
+                    }
                 }
             }
         }
     }
     #endregion
 
-#region Returning
+    #region Returning
     private void UpdateReturning(float distanceToTarget)
     {
         if (distanceToTarget <= detectionRadius && currentTarget != null)
@@ -283,7 +345,7 @@ public class Zombie : MonoBehaviour
     }
     #endregion
 
-#region Animation
+    #region Animation
     private void UpdateAnimation()
     {
         if (animator != null)
@@ -295,7 +357,7 @@ public class Zombie : MonoBehaviour
     }
     #endregion
 
-#region Utils
+    #region Utils
     public void ForceChasePlayer(Transform playerTarget)
     {
         if (playerTarget != null)
