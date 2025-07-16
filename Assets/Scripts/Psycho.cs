@@ -124,9 +124,4 @@ public class Psycho : EnemyAI
     {
         ForceChaseTarget(playerTarget);
     }
-
-    public void ForceChasePlayer(Transform playerTarget)
-    {
-        ForceChaseTarget(playerTarget);
-    }
 }

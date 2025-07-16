@@ -2,299 +2,145 @@ using UnityEngine;
 using System.Collections;
 
 [RequireComponent(typeof(EnemyHealth))]
-[RequireComponent(typeof(UnityEngine.AI.NavMeshAgent))]
-[RequireComponent(typeof(Animator))]
-public class ZombieCommander : MonoBehaviour, IEntity
+public class ZombieCommander : EnemyAI
 {
-	[Header("Commander Settings")]
-	public float callReinforcementsRadius = 20f;
-	public float callReinforcementsCooldown = 10f;
-	public LayerMask enemyLayer;
-	public float reinforcementCallHealthThreshold = 0.5f;
-	public GameObject callEffectPrefab;
-	public AudioClip callSound;
+    [Header("Commander Settings")]
+    public float callReinforcementsRadius = 100f;
+    public float callReinforcementsCooldown = 5f;
+    public LayerMask reinforcementLayer;
+    public float reinforcementCallHealthThreshold = 0.5f;
+    public GameObject callEffectPrefab;
+    public AudioClip callSound;
 
-	[Header("Combat Settings")]
-	public float detectionRadius = 10f;
-	public float chaseRadius = 15f;
-	public float patrolRadius = 20f;
-	public float patrolPointMinDistance = 5f;
-	public float patrolWaitTime = 2f;
-	public float attackRange = 1.5f;
-	public int attackDamage = 15;
-	public float attackCooldown = 1f;
+    private Transform psychoTransform;
+    private EnemyHealth psychoHealth;
+    private float psychoSearchTimer;
+    private const float PSYCHO_SEARCH_INTERVAL = 2f;
 
-	public enum ZombieState
-	{
-		Patrolling,
-		Chasing,
-		Returning
-	}
+    private float lastCallTime;
+    private AudioSource audioSource;
+    private EnemyHealth commanderHealth;
 
-	private EnemyHealth health;
-	private UnityEngine.AI.NavMeshAgent navMeshAgent;
-	private Animator animator;
-	private Transform playerTransform;
-	private PlayerHealth playerHealth;
-	private CompanionHealth companionHealth;
-	private ZombieState currentState = ZombieState.Patrolling;
-	private Vector3 spawnPosition;
-	private Vector3 currentPatrolPoint;
-	private float waitTimer = 0f;
-	private bool isWaiting = false;
-	private float lastAttackTime;
-	private float lastCallTime;
-	private AudioSource audioSource;
+    protected override void Start()
+    {
+        // Настройки командира
+        detectionRadius = 10f;
+        chaseRadius = 15f;
+        patrolRadius = 20f;
+        patrolPointMinDistance = 5f;
+        patrolWaitTime = 2f;
+        attackRange = 1.5f;
+        attackDamage = 15;
+        attackCooldown = 1f;
 
-	void Start()
-	{
-		navMeshAgent = GetComponent<UnityEngine.AI.NavMeshAgent>();
-		animator = GetComponent<Animator>();
-		audioSource = GetComponent<AudioSource>();
-		spawnPosition = transform.position;
-		health = GetComponent<EnemyHealth>();
+        canAttackOtherEnemies = true;
+        enemyTags = new string[] { "Psycho" };
 
-		if (health == null)
-		{
-			Debug.LogError("EnemyHealth component is missing!", this);
-			health = gameObject.AddComponent<EnemyHealth>();
-		}
+        base.Start();
 
-		InitializeTargets();
-		SetRandomPatrolPoint();
-	}
+        audioSource = GetComponent<AudioSource>();
+        commanderHealth = GetComponent<EnemyHealth>();
+    }
 
-	void InitializeTargets()
-	{
-		var playerController = FindObjectOfType<SC_TPSController>();
-		if (playerController != null)
-		{
-			playerTransform = playerController.transform;
-			playerHealth = playerController.GetComponent<PlayerHealth>();
-		}
+    protected override void Update()
+    {
+        base.Update();
 
-		var companion = FindObjectOfType<CompanionAI>();
-		if (companion != null)
-		{
-			companionHealth = companion.GetComponent<CompanionHealth>();
-		}
-	}
+        // Проверка условий для вызова подкреплений
+        if (commanderHealth != null &&
+            !commanderHealth.isDead &&
+            (currentState == EnemyState.Chasing || currentState == EnemyState.Attacking) &&
+            Time.time - lastCallTime >= callReinforcementsCooldown &&
+            commanderHealth.currentHealth <= commanderHealth.maxHealth * reinforcementCallHealthThreshold)
+        {
+            CallReinforcements();
+            lastCallTime = Time.time;
+        }
+    }
 
-	void Update()
-	{
-		if (playerTransform == null)
-		{
-			InitializeTargets();
-			if (playerTransform == null) return;
-		}
+    protected override Transform GetSpecialTarget()
+    {
+        // Для зомби специальная цель - псих
+        if (psychoHealth != null && psychoHealth.currentHealth > 0 && !psychoHealth.isDead)
+        {
+            float dist = Vector3.Distance(transform.position, psychoTransform.position);
+            if (dist <= detectionRadius) // <-- ЭТО ДОБАВИЛСЯ ПОСЛЕ
+            {
+                return psychoTransform;
+            }
+        }
+        return null;
+    }
 
-		float distanceToPlayer = Vector3.Distance(transform.position, playerTransform.position);
+    protected override void AttackImplementation()
+    {
+        if (currentTarget == null) return;
 
-		switch (currentState)
-		{
-			case ZombieState.Patrolling:
-				UpdatePatrolling(distanceToPlayer);
-				break;
+        transform.LookAt(currentTarget);
 
-			case ZombieState.Chasing:
-				UpdateChasing(distanceToPlayer);
-				break;
+        if (animator != null)
+        {
+            animator.SetTrigger("Attack");
+        }
 
-			case ZombieState.Returning:
-				UpdateReturning(distanceToPlayer);
-				break;
-		}
+        // Нанесение урона в зависимости от типа цели
+        CompanionHealth companion = currentTarget.GetComponent<CompanionHealth>();
+        if (companion != null)
+        {
+            companion.TakeDamage(attackDamage);
+            return;
+        }
 
-		if (currentState == ZombieState.Chasing &&
-			Time.time - lastCallTime >= callReinforcementsCooldown &&
-			(health != null && health.currentHealth / health.maxHealth <= reinforcementCallHealthThreshold))
-		{
-			CallReinforcements();
-			lastCallTime = Time.time;
-		}
+        PlayerHealth player = currentTarget.GetComponent<PlayerHealth>();
+        if (player != null)
+        {
+            player.TakeDamage(attackDamage);
+            return;
+        }
 
-		UpdateAnimation();
-	}
+        EnemyHealth enemy = currentTarget.GetComponent<EnemyHealth>();
+        if (enemy != null && canAttackOtherEnemies)
+        {
+            enemy.TakeDamage(attackDamage);
+        }
+    }
 
-	public void ApplyDamage(float damage)
-	{
-		if (health != null)
-		{
-			health.TakeDamage(Mathf.RoundToInt(damage));
+    private void CallReinforcements()
+    {
+        Collider[] hitColliders = new Collider[20];
+        int numColliders = Physics.OverlapSphereNonAlloc(
+            transform.position,
+            callReinforcementsRadius,
+            hitColliders,
+            reinforcementLayer
+        );
 
-			if (currentState != ZombieState.Chasing && playerTransform != null)
-			{
-				currentState = ZombieState.Chasing;
-				navMeshAgent.SetDestination(playerTransform.position);
-			}
-		}
-	}
+        for (int i = 0; i < numColliders; i++)
+        {
+            Zombie zombie = hitColliders[i].GetComponent<Zombie>();
+            if (zombie != null && zombie != this)
+            {
+                zombie.ForceChaseTarget(playerTransform);
+            }
+        }
 
-	private void UpdatePatrolling(float distanceToPlayer)
-	{
-		if (distanceToPlayer <= detectionRadius)
-		{
-			currentState = ZombieState.Chasing;
-			return;
-		}
+        // Визуальные и звуковые эффекты
+        if (callEffectPrefab != null)
+        {
+            Instantiate(callEffectPrefab, transform.position, Quaternion.identity);
+        }
 
-		if (!navMeshAgent.pathPending && navMeshAgent.remainingDistance <= navMeshAgent.stoppingDistance)
-		{
-			if (!isWaiting)
-			{
-				isWaiting = true;
-				waitTimer = 0f;
-			}
-			else
-			{
-				waitTimer += Time.deltaTime;
-				if (waitTimer >= patrolWaitTime)
-				{
-					isWaiting = false;
-					SetRandomPatrolPoint();
-				}
-			}
-		}
-	}
+        if (callSound != null && audioSource != null)
+        {
+            audioSource.PlayOneShot(callSound);
+        }
+    }
 
-	private void UpdateChasing(float distanceToPlayer)
-	{
-		if (distanceToPlayer > chaseRadius)
-		{
-			currentState = ZombieState.Returning;
-			navMeshAgent.SetDestination(spawnPosition);
-			return;
-		}
+    protected override void OnDrawGizmosSelected()
+    {
+        base.OnDrawGizmosSelected();
 
-		navMeshAgent.SetDestination(playerTransform.position);
-
-		if (distanceToPlayer <= attackRange)
-		{
-			AttackTarget();
-		}
-	}
-
-	private void UpdateReturning(float distanceToPlayer)
-	{
-		if (distanceToPlayer <= detectionRadius)
-		{
-			currentState = ZombieState.Chasing;
-			return;
-		}
-
-		if (!navMeshAgent.pathPending && navMeshAgent.remainingDistance <= navMeshAgent.stoppingDistance)
-		{
-			currentState = ZombieState.Patrolling;
-			SetRandomPatrolPoint();
-		}
-	}
-
-	private void AttackTarget()
-	{
-		if (Time.time - lastAttackTime >= attackCooldown)
-		{
-			lastAttackTime = Time.time;
-			transform.LookAt(playerTransform);
-
-			if (animator != null)
-			{
-				animator.SetTrigger("Attack");
-			}
-
-			if (playerHealth != null)
-			{
-				playerHealth.TakeDamage(attackDamage);
-			}
-
-			if (companionHealth != null &&
-				Vector3.Distance(transform.position, companionHealth.transform.position) <= attackRange)
-			{
-				companionHealth.TakeDamage(attackDamage);
-			}
-		}
-	}
-
-	private void SetRandomPatrolPoint()
-	{
-		Vector3 randomDirection = Random.insideUnitSphere * patrolRadius;
-		randomDirection += spawnPosition;
-
-		UnityEngine.AI.NavMeshHit hit;
-		if (UnityEngine.AI.NavMesh.SamplePosition(randomDirection, out hit, patrolRadius, UnityEngine.AI.NavMesh.AllAreas))
-		{
-			if (Vector3.Distance(transform.position, hit.position) >= patrolPointMinDistance)
-			{
-				currentPatrolPoint = hit.position;
-				navMeshAgent.SetDestination(currentPatrolPoint);
-				return;
-			}
-		}
-		SetRandomPatrolPoint();
-	}
-
-	private void UpdateAnimation()
-	{
-		if (animator != null)
-		{
-			bool isMoving = navMeshAgent.velocity.magnitude > 0.1f;
-			animator.SetBool("IsMoving", isMoving);
-			animator.SetBool("IsChasing", currentState == ZombieState.Chasing);
-		}
-	}
-
-	public void ForceChasePlayer(Transform playerTarget)
-	{
-		if (playerTarget != null)
-		{
-			playerTransform = playerTarget;
-			currentState = ZombieState.Chasing;
-			navMeshAgent.SetDestination(playerTransform.position);
-		}
-	}
-
-	private void CallReinforcements()
-	{
-		Collider[] zombies = Physics.OverlapSphere(
-			transform.position,
-			callReinforcementsRadius,
-			enemyLayer
-		);
-
-		foreach (Collider zombieCollider in zombies)
-		{
-			Zombie zombie = zombieCollider.GetComponent<Zombie>();
-			if (zombie != null && zombie != this)
-			{
-				zombie.ForceChasePlayer(playerTransform);
-			}
-		}
-
-		if (callEffectPrefab != null)
-		{
-			Instantiate(callEffectPrefab, transform.position, Quaternion.identity);
-		}
-
-		if (callSound != null && audioSource != null)
-		{
-			audioSource.PlayOneShot(callSound);
-		}
-	}
-
-	private void OnDrawGizmosSelected()
-	{
-		Gizmos.color = Color.yellow;
-		Gizmos.DrawWireSphere(transform.position, detectionRadius);
-
-		Gizmos.color = Color.red;
-		Gizmos.DrawWireSphere(transform.position, chaseRadius);
-
-		Gizmos.color = Color.green;
-		Gizmos.DrawWireSphere(transform.position, callReinforcementsRadius);
-
-		if (Application.isPlaying)
-		{
-			Gizmos.color = Color.blue;
-			Gizmos.DrawWireSphere(spawnPosition, patrolRadius);
-		}
-	}
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireSphere(transform.position, callReinforcementsRadius);
+    }
 }

@@ -51,7 +51,7 @@ public abstract class EnemyAI : MonoBehaviour
         animator = GetComponent<Animator>();
         spawnPosition = transform.position;
         FindPlayer();
-        StartCoroutine(InitializePatrol());
+        SetRandomPatrolPoint();
     }
 
     protected virtual void Update()
@@ -92,22 +92,6 @@ public abstract class EnemyAI : MonoBehaviour
         }
 
         UpdateAnimation();
-    }
-
-    private IEnumerator InitializePatrol()
-    {
-        // ���� 1 ���� ��� ������������� NavMeshAgent
-        yield return null;
-
-        // �������������� �������� ��� ��������
-        float timeout = 3f;
-        while (timeout > 0 && !navMeshAgent.isOnNavMesh)
-        {
-            timeout -= Time.deltaTime;
-            yield return null;
-        }
-
-        SetRandomPatrolPoint();
     }
 
     protected Transform FindClosestEnemy()
@@ -416,9 +400,10 @@ public abstract class EnemyAI : MonoBehaviour
 
     protected virtual void SetRandomPatrolPoint(int attempts = 5)
     {
+        Debug.Log(attempts);
         if (!navMeshAgent.isOnNavMesh)
         {
-            Debug.LogWarning("Attempted to set patrol point while agent not on NavMesh");
+            Debug.Log("Attempted to set patrol point while agent not on NavMesh");
             return;
         }
 

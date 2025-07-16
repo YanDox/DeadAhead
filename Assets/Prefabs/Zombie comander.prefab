@@ -48,14 +48,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9be50f771439c7d479f72a1e8162ffd9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  callReinforcementsRadius: 20
-  callReinforcementsCooldown: 10
-  enemyLayer:
-    serializedVersion: 2
-    m_Bits: 2147483647
-  reinforcementCallHealthThreshold: 0.5
-  callEffectPrefab: {fileID: 0}
-  callSound: {fileID: 0}
   detectionRadius: 10
   chaseRadius: 15
   patrolRadius: 20
@@ -64,6 +56,20 @@ MonoBehaviour:
   attackRange: 1.5
   attackDamage: 15
   attackCooldown: 1
+  companionLayer:
+    serializedVersion: 2
+    m_Bits: 128
+  enemyTags:
+  - Psycho
+  canAttackOtherEnemies: 1
+  callReinforcementsRadius: 100
+  callReinforcementsCooldown: 5
+  reinforcementLayer:
+    serializedVersion: 2
+    m_Bits: 8
+  reinforcementCallHealthThreshold: 0.5
+  callEffectPrefab: {fileID: 0}
+  callSound: {fileID: 0}
 --- !u!195 &-8441466192606302864
 NavMeshAgent:
   m_ObjectHideFlags: 0
