@@ -5,21 +5,21 @@ using System.Collections.Generic;
 public class Psycho : EnemyAI
 {
     [Header("Psycho Specific Settings")]
-    public LayerMask zombieLayer; // Слой зомби
+    public LayerMask zombieLayer; // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
     private List<Zombie> zombiesInRange = new List<Zombie>();
 
     protected override void Start()
     {
         base.Start();
 
-        // Настройки для психа
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
         canAttackOtherEnemies = true;
-        enemyTags = new string[] { "Zombie" }; // Атакуем зомби по тегу
+        enemyTags = new string[] { "Zombie" }; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ
     }
 
     protected override void FindAllTargets()
     {
-        base.FindAllTargets(); // Базовый поиск компаньонов и игрока
+        base.FindAllTargets(); // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
 
         zombiesInRange.Clear();
         int numZombies = Physics.OverlapSphereNonAlloc(
@@ -38,7 +38,7 @@ public class Psycho : EnemyAI
 
     protected override Transform GetSpecialTarget()
     {
-        // Для психа специальная цель - ближайший зомби
+        // пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ - пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
         Zombie closestZombie = null;
         float minDistance = float.MaxValue;
 
@@ -92,7 +92,7 @@ public class Psycho : EnemyAI
                 {
                     zombieHealth.TakeDamage(attackDamage);
 
-                    // если цель умерла — сразу очищаем и ищем новую
+                    // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
                     if (zombieHealth.isDead)
                     {
                         currentTarget = null;
@@ -110,7 +110,7 @@ public class Psycho : EnemyAI
         {
             enemy.TakeDamage(attackDamage);
 
-            // если цель умерла — сразу очищаем и ищем новую
+            // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
             if (enemy.isDead)
             {
                 currentTarget = null;
@@ -118,6 +118,11 @@ public class Psycho : EnemyAI
             }
             return;
         }
+    }
+
+    public void ForceChasePlayer(Transform playerTarget)
+    {
+        ForceChaseTarget(playerTarget);
     }
 
     public void ForceChasePlayer(Transform playerTarget)

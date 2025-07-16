@@ -37,7 +37,7 @@ public abstract class EnemyAI : MonoBehaviour
     protected float lastAttackTime;
 
     [Header("Enemy Interactions")]
-    public string[] enemyTags = new string[0]; // Теги врагов для атаки
+    public string[] enemyTags = new string[0]; // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
     public bool canAttackOtherEnemies = true;
 
     protected Transform playerTransform;
@@ -96,10 +96,10 @@ public abstract class EnemyAI : MonoBehaviour
 
     private IEnumerator InitializePatrol()
     {
-        // Ждем 1 кадр для инициализации NavMeshAgent
+        // пїЅпїЅпїЅпїЅ 1 пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ NavMeshAgent
         yield return null;
 
-        // Дополнительная проверка для гарантии
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         float timeout = 3f;
         while (timeout > 0 && !navMeshAgent.isOnNavMesh)
         {
@@ -117,7 +117,7 @@ public abstract class EnemyAI : MonoBehaviour
         Transform closestEnemy = null;
         float minDistance = float.MaxValue;
 
-        // Используем кешированный массив для OverlapSphere
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ OverlapSphere
         int hitCount = Physics.OverlapSphereNonAlloc(
             transform.position,
             detectionRadius,
@@ -128,10 +128,10 @@ public abstract class EnemyAI : MonoBehaviour
         {
             GameObject enemyObj = hitColliders[i].gameObject;
 
-            // Игнорируем себя
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
             if (enemyObj == gameObject) continue;
 
-            // Проверяем тег
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ
             bool validTag = false;
             foreach (string tag in enemyTags)
             {
@@ -143,11 +143,11 @@ public abstract class EnemyAI : MonoBehaviour
             }
             if (!validTag) continue;
 
-            // Проверяем, что враг жив
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ
             EnemyHealth health = enemyObj.GetComponent<EnemyHealth>();
             if (health != null && health.isDead) continue;
 
-            // Проверяем, что это враг
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
             EnemyAI enemyAI = enemyObj.GetComponent<EnemyAI>();
             if (enemyAI == null) continue;
 
@@ -212,7 +212,7 @@ public abstract class EnemyAI : MonoBehaviour
 
         if (currentState == EnemyState.Attacking) return;
 
-        // 1. Приоритет: ближайший живой компаньон
+        // 1. пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         CompanionHealth closestCompanion = FindClosestCompanion();
         if (closestCompanion != null)
         {
@@ -225,7 +225,7 @@ public abstract class EnemyAI : MonoBehaviour
             }
         }
 
-        // 2. Приоритет: игрок (если жив)
+        // 2. пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ)
         float playerDistance = Vector3.Distance(transform.position, playerTransform.position);
         if (playerHealth != null && playerHealth.currentHealth > 0 && playerDistance <= detectionRadius)
         {
@@ -234,7 +234,7 @@ public abstract class EnemyAI : MonoBehaviour
             return;
         }
 
-        // 3. Приоритет: специальная цель (реализуется в дочерних классах)
+        // 3. пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
         currentTarget = GetSpecialTarget();
 
         if (currentTarget != null)
@@ -371,22 +371,22 @@ public abstract class EnemyAI : MonoBehaviour
 
     protected bool IsTargetValid(Transform target)
     {
-        if (target.CompareTag(gameObject.tag)) // избегаем "дружественного огня"
+        if (target.CompareTag(gameObject.tag)) // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ "пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ"
             return false;
 
         if (target == null) return false;
         if (!target.gameObject.activeInHierarchy) return false;
 
-        // Проверка здоровья игрока
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
         if (target == playerTransform && playerHealth != null)
             return playerHealth.currentHealth > 0;
 
-        // Проверка здоровья компаньона
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         CompanionHealth companion = target.GetComponent<CompanionHealth>();
         if (companion != null)
             return companion.currentHealth > 0;
 
-        // Проверка здоровья врага
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
         EnemyHealth enemy = target.GetComponent<EnemyHealth>();
         if (enemy != null)
             return !enemy.isDead;
