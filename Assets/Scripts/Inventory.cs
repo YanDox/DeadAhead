@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class Inventory : MonoBehaviour
 {
-	public int[] items = new int[4];
+	public int[] items = new int[5];
 	public const int RIFLE_AMMO = 0;
 	public const int AXE = 1;
 	public const int BUS_PART = 2;
@@ -23,6 +23,7 @@ public class Inventory : MonoBehaviour
 		items[AXE] = 0;
 		items[BUS_PART] = 0;
 		items[MEDKIT] = 1;
+		items[COLA_CRATE] = 0;
 	}
 
 	public void AddUltimatePoints(int amount)
@@ -80,7 +81,7 @@ public class Inventory : MonoBehaviour
 				return true;
 		
 				case COLA_CRATE:
-			if (items[COLA_CRATE] == 0) // Можно нести только один ящик
+			if (items[COLA_CRATE] == 0)
 			{
 				items[COLA_CRATE] = 1;
 				return true;

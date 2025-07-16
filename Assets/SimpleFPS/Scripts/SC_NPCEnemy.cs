@@ -21,22 +21,27 @@ public class SC_NPCEnemy : MonoBehaviour, IEntity
     NavMeshAgent agent;
     float nextAttackTime = 0;
 
-    // Start is called before the first frame update
-    void Start()
-    {
-        agent = GetComponent<NavMeshAgent>();
-        agent.stoppingDistance = attackDistance;
-        agent.speed = movementSpeed;
+	// Start is called before the first frame update
+	void Start()
+	{
+		agent = GetComponent<NavMeshAgent>();
+		agent.stoppingDistance = attackDistance;
+		agent.speed = movementSpeed;
 
-        //Set Rigidbody to Kinematic to prevent hit register bug
-        if (GetComponent<Rigidbody>())
-        {
-            GetComponent<Rigidbody>().isKinematic = true;
-        }
-    }
+		// Инициализация EnemySpawner если не установлен
+		if (es == null)
+		{
+			es = FindObjectOfType<SC_EnemySpawner>();
+		}
 
-    // Update is called once per frame
-    void Update()
+		if (GetComponent<Rigidbody>())
+		{
+			GetComponent<Rigidbody>().isKinematic = true;
+		}
+	}
+
+	// Update is called once per frame
+	void Update()
     {
         if (agent.remainingDistance - attackDistance < 0.01f)
         {
