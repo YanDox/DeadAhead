@@ -17,7 +17,9 @@ public class CompanionHealth : MonoBehaviour, IEntity
 
     private CompanionAI companionAI;
 
-    void Start()
+	public event System.Action<GameObject> OnDeath;
+
+	void Start()
     {
         currentHealth = maxHealth;
         companionAI = GetComponent<CompanionAI>();
@@ -53,23 +55,27 @@ public class CompanionHealth : MonoBehaviour, IEntity
         }
     }
 
-    void Die()
-    {
-        isDead = true;
+	void Die()
+	{
+		if (isDead) return;
+		isDead = true;
 
-        if (companionAI != null) companionAI.enabled = false;
-        var collider = GetComponent<Collider>();
-        if (collider != null) collider.enabled = false;
+		// Вызываем событие перед уничтожением
+		OnDeath?.Invoke(gameObject);
 
-        if (deathEffect != null)
-        {
-            Instantiate(deathEffect, transform.position, Quaternion.identity);
-        }
+		if (companionAI != null) companionAI.enabled = false;
+		var collider = GetComponent<Collider>();
+		if (collider != null) collider.enabled = false;
 
-        StartCoroutine(ReplaceWithZombieAfterDelay());
-    }
+		if (deathEffect != null)
+		{
+			Instantiate(deathEffect, transform.position, Quaternion.identity);
+		}
 
-    IEnumerator ReplaceWithZombieAfterDelay()
+		StartCoroutine(ReplaceWithZombieAfterDelay());
+	}
+
+	IEnumerator ReplaceWithZombieAfterDelay()
     {
         yield return new WaitForSeconds(deathAnimationTime);
 
