@@ -55,7 +55,7 @@ public class CompanionAI : MonoBehaviour
     public KeyCode transferPartKey = KeyCode.R;
     private Vector3 currentRepairPoint;
     public float transferDistance = 3f;
-    public float repairStoppingDistance = 3f;
+    public float repairStoppingDistance = 5f;
     public float repairRadius = 5f;
 
     [Header("Rotation Settings")]

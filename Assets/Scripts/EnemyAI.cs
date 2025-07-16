@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.AI;
 using System.Collections.Generic;
+using System.Collections;
 
 public abstract class EnemyAI : MonoBehaviour
 {
@@ -50,7 +51,7 @@ public abstract class EnemyAI : MonoBehaviour
         animator = GetComponent<Animator>();
         spawnPosition = transform.position;
         FindPlayer();
-        SetRandomPatrolPoint();
+        StartCoroutine(InitializePatrol());
     }
 
     protected virtual void Update()
@@ -63,7 +64,7 @@ public abstract class EnemyAI : MonoBehaviour
             if (currentState != EnemyState.Patrolling && currentState != EnemyState.Returning)
             {
                 currentState = EnemyState.Returning;
-                navMeshAgent.SetDestination(spawnPosition);
+                SafeSetDestination(spawnPosition);
             }
         }
 
@@ -91,6 +92,22 @@ public abstract class EnemyAI : MonoBehaviour
         }
 
         UpdateAnimation();
+    }
+
+    private IEnumerator InitializePatrol()
+    {
+        // Ждем 1 кадр для инициализации NavMeshAgent
+        yield return null;
+
+        // Дополнительная проверка для гарантии
+        float timeout = 3f;
+        while (timeout > 0 && !navMeshAgent.isOnNavMesh)
+        {
+            timeout -= Time.deltaTime;
+            yield return null;
+        }
+
+        SetRandomPatrolPoint();
     }
 
     protected Transform FindClosestEnemy()
@@ -311,7 +328,7 @@ public abstract class EnemyAI : MonoBehaviour
         if (currentTarget == null || distanceToTarget > chaseRadius)
         {
             currentState = EnemyState.Returning;
-            navMeshAgent.SetDestination(spawnPosition);
+            SafeSetDestination(spawnPosition);
             return;
         }
 
@@ -387,7 +404,7 @@ public abstract class EnemyAI : MonoBehaviour
 
         if (navMeshAgent.destination != spawnPosition)
         {
-            navMeshAgent.SetDestination(spawnPosition);
+            SafeSetDestination(spawnPosition);
         }
 
         if (!navMeshAgent.pathPending && navMeshAgent.remainingDistance <= navMeshAgent.stoppingDistance)
@@ -399,12 +416,18 @@ public abstract class EnemyAI : MonoBehaviour
 
     protected virtual void SetRandomPatrolPoint(int attempts = 5)
     {
+        if (!navMeshAgent.isOnNavMesh)
+        {
+            Debug.LogWarning("Attempted to set patrol point while agent not on NavMesh");
+            return;
+        }
+
         Vector3 randomDirection = Random.insideUnitSphere * patrolRadius;
         randomDirection += spawnPosition;
 
         if (attempts <= 0)
         {
-            navMeshAgent.SetDestination(spawnPosition);
+            SafeSetDestination(spawnPosition);
             return;
         }
 
@@ -419,6 +442,20 @@ public abstract class EnemyAI : MonoBehaviour
             }
         }
         SetRandomPatrolPoint(attempts - 1);
+    }
+
+    protected void SafeSetDestination(Vector3 targetPosition)
+    {
+        if (navMeshAgent != null &&
+            navMeshAgent.isActiveAndEnabled &&
+            navMeshAgent.isOnNavMesh)
+        {
+            navMeshAgent.SetDestination(targetPosition);
+        }
+        else
+        {
+            Debug.LogWarning("Attempted to set destination while agent is inactive or not on NavMesh");
+        }
     }
 
     protected virtual void UpdateAnimation()

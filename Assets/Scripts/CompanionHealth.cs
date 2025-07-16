@@ -61,24 +61,20 @@ public class CompanionHealth : MonoBehaviour, IEntity
 		if (isDead) return;
 		isDead = true;
 
-		// �������� ������� ����� ������������
 		OnDeath?.Invoke(gameObject);
 
 		if (companionAI != null) companionAI.enabled = false;
-		var collider = GetComponent<Collider>();
-		if (collider != null) collider.enabled = false;
+        if (companionCollider != null) companionCollider.enabled = false;
 
-		if (deathEffect != null)
-		{
-			Instantiate(deathEffect, transform.position, Quaternion.identity);
-		}
+        foreach (Renderer r in GetComponentsInChildren<Renderer>())
+        {
+            r.enabled = false;
+        }
 
-		StartCoroutine(ReplaceWithZombieAfterDelay());
-	}
-
-	IEnumerator ReplaceWithZombieAfterDelay()
-    {
-        yield return new WaitForSeconds(deathAnimationTime);
+        if (deathEffect != null)
+        {
+            Instantiate(deathEffect, transform.position, Quaternion.identity);
+        }
 
         if (zombiePrefab != null)
         {
@@ -87,7 +83,6 @@ public class CompanionHealth : MonoBehaviour, IEntity
 
             Instantiate(zombiePrefab, spawnPosition, transform.rotation);
         }
-
         Destroy(gameObject, 0.1f);
     }
 
