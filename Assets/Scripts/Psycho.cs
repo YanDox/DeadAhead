@@ -8,11 +8,19 @@ public class Psycho : EnemyAI
     public LayerMask zombieLayer; // Слой зомби
     private List<Zombie> zombiesInRange = new List<Zombie>();
 
+    protected override void Start()
+    {
+        base.Start();
+
+        // Настройки для психа
+        canAttackOtherEnemies = true;
+        enemyTags = new string[] { "Zombie" }; // Атакуем зомби по тегу
+    }
+
     protected override void FindAllTargets()
     {
         base.FindAllTargets(); // Базовый поиск компаньонов и игрока
 
-        // Поиск зомби
         zombiesInRange.Clear();
         int numZombies = Physics.OverlapSphereNonAlloc(
             transform.position,
@@ -81,7 +89,15 @@ public class Psycho : EnemyAI
             {
                 EnemyHealth zombieHealth = currentTarget.GetComponent<EnemyHealth>();
                 if (zombieHealth != null) zombieHealth.TakeDamage(attackDamage);
+
+                FindAllTargets();
+                ChooseMainTarget();
             }
         }
+    }
+
+    public void ForceChasePlayer(Transform playerTarget)
+    {
+        ForceChaseTarget(playerTarget);
     }
 }

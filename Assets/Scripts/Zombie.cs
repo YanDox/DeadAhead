@@ -9,6 +9,15 @@ public class Zombie : EnemyAI
     private float psychoSearchTimer;
     private const float PSYCHO_SEARCH_INTERVAL = 2f;
 
+    protected override void Start()
+    {
+        base.Start();
+
+        // Настройки для зомби
+        canAttackOtherEnemies = true;
+        enemyTags = new string[] { "Psycho" }; // Атакуем психов по тегу
+    }
+
     protected override void FindAllTargets()
     {
         base.FindAllTargets(); // Вызываем базовый поиск
@@ -24,20 +33,31 @@ public class Zombie : EnemyAI
 
     private void FindPsycho()
     {
+        psychoTransform = null;
+        psychoHealth = null;
+
         GameObject psychoObject = GameObject.FindGameObjectWithTag("Psycho");
         if (psychoObject != null)
         {
-            psychoTransform = psychoObject.transform;
-            psychoHealth = psychoObject.GetComponent<EnemyHealth>();
+            EnemyHealth health = psychoObject.GetComponent<EnemyHealth>();
+            if (health != null && !health.isDead && health.enabled)
+            {
+                psychoTransform = psychoObject.transform;
+                psychoHealth = health;
+            }
         }
     }
 
     protected override Transform GetSpecialTarget()
     {
         // Для зомби специальная цель - псих
-        if (psychoHealth != null && psychoHealth.currentHealth > 0)
+        if (psychoHealth != null && psychoHealth.currentHealth > 0 && !psychoHealth.isDead)
         {
-            return psychoTransform;
+            float dist = Vector3.Distance(transform.position, psychoTransform.position);
+            if (dist <= detectionRadius) // <-- ЭТО ДОБАВИЛСЯ ПОСЛЕ
+            {
+                return psychoTransform;
+            }
         }
         return null;
     }
@@ -69,6 +89,9 @@ public class Zombie : EnemyAI
             if (currentTarget == psychoTransform && psychoHealth != null)
             {
                 psychoHealth.TakeDamage(attackDamage);
+                // Принудительное обновление целей
+                FindAllTargets();
+                ChooseMainTarget();
             }
         }
     }

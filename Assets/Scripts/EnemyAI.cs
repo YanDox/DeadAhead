@@ -34,7 +34,11 @@ public abstract class EnemyAI : MonoBehaviour
     protected float waitTimer = 0f;
     protected bool isWaiting = false;
     protected float lastAttackTime;
-    
+
+    [Header("Enemy Interactions")]
+    public string[] enemyTags = new string[0]; // Теги врагов для атаки
+    public bool canAttackOtherEnemies = true;
+
     protected Transform playerTransform;
     protected PlayerHealth playerHealth;
     protected List<CompanionHealth> companionsInRange = new List<CompanionHealth>();
@@ -53,15 +57,6 @@ public abstract class EnemyAI : MonoBehaviour
     {
         FindAllTargets();
         ChooseMainTarget();
-        
-        if (currentTarget == null)
-        {
-            if (currentState != EnemyState.Patrolling && currentState != EnemyState.Returning)
-            {
-                currentState = EnemyState.Returning;
-                navMeshAgent.SetDestination(spawnPosition);
-            }
-        }
 
         if (currentTarget == null) return;
 
@@ -89,6 +84,58 @@ public abstract class EnemyAI : MonoBehaviour
         UpdateAnimation();
     }
 
+    protected Transform FindClosestEnemy()
+    {
+        if (enemyTags == null || enemyTags.Length == 0) return null;
+
+        Transform closestEnemy = null;
+        float minDistance = float.MaxValue;
+
+        // Используем кешированный массив для OverlapSphere
+        int hitCount = Physics.OverlapSphereNonAlloc(
+            transform.position,
+            detectionRadius,
+            hitColliders
+        );
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            GameObject enemyObj = hitColliders[i].gameObject;
+
+            // Игнорируем себя
+            if (enemyObj == gameObject) continue;
+
+            // Проверяем тег
+            bool validTag = false;
+            foreach (string tag in enemyTags)
+            {
+                if (enemyObj.CompareTag(tag))
+                {
+                    validTag = true;
+                    break;
+                }
+            }
+            if (!validTag) continue;
+
+            // Проверяем, что враг жив
+            EnemyHealth health = enemyObj.GetComponent<EnemyHealth>();
+            if (health != null && health.isDead) continue;
+
+            // Проверяем, что это враг
+            EnemyAI enemyAI = enemyObj.GetComponent<EnemyAI>();
+            if (enemyAI == null) continue;
+
+            float distance = Vector3.Distance(transform.position, enemyObj.transform.position);
+            if (distance < minDistance)
+            {
+                minDistance = distance;
+                closestEnemy = enemyObj.transform;
+            }
+        }
+
+        return closestEnemy;
+    }
+
     protected virtual void FindAllTargets()
     {
         FindCompanions();
@@ -101,23 +148,73 @@ public abstract class EnemyAI : MonoBehaviour
 
     protected virtual void ChooseMainTarget()
     {
+        if (currentTarget != null)
+    {
+        bool shouldClear = false;
+
+        if (!currentTarget.gameObject.activeInHierarchy)
+        {
+            shouldClear = true;
+        }
+        else
+        {
+            EnemyHealth enemyHealth = currentTarget.GetComponent<EnemyHealth>();
+            if (enemyHealth != null && enemyHealth.isDead)
+            {
+                shouldClear = true;
+            }
+
+            CompanionHealth companionHealth = currentTarget.GetComponent<CompanionHealth>();
+            if (companionHealth != null && companionHealth.currentHealth <= 0)
+            {
+                shouldClear = true;
+            }
+
+            if (currentTarget == playerTransform && playerHealth != null && playerHealth.currentHealth <= 0)
+            {
+                shouldClear = true;
+            }
+        }
+
+        if (shouldClear)
+        {
+            Debug.Log($"{gameObject.name}: Clearing dead or invalid target: {currentTarget.name}");
+            currentTarget = null;
+            currentState = EnemyState.Returning;
+        }
+    }
+
+        if (currentState == EnemyState.Attacking) return;
+
         // 1. Приоритет: ближайший живой компаньон
         CompanionHealth closestCompanion = FindClosestCompanion();
         if (closestCompanion != null)
         {
-            currentTarget = closestCompanion.transform;
-            return;
+            float distanceToCompanion = Vector3.Distance(transform.position, closestCompanion.transform.position);
+            if (distanceToCompanion <= detectionRadius)
+            {
+                Debug.Log($"{gameObject.name} targeting companion: {closestCompanion.name}");
+                currentTarget = closestCompanion.transform;
+                return;
+            }
         }
 
         // 2. Приоритет: игрок (если жив)
-        if (playerHealth != null && playerHealth.currentHealth > 0)
+        float playerDistance = Vector3.Distance(transform.position, playerTransform.position);
+        if (playerHealth != null && playerHealth.currentHealth > 0 && playerDistance <= detectionRadius)
         {
+            Debug.Log($"{gameObject.name} targeting player.");
             currentTarget = playerTransform;
             return;
         }
 
         // 3. Приоритет: специальная цель (реализуется в дочерних классах)
         currentTarget = GetSpecialTarget();
+
+        if (currentTarget != null)
+        {
+            Debug.Log($"{gameObject.name} targeting special: {currentTarget.name}");
+        }
     }
 
     private void FindPlayer()
@@ -219,6 +316,12 @@ public abstract class EnemyAI : MonoBehaviour
 
     protected virtual void UpdateAttacking(float distanceToTarget)
     {
+        if (currentTarget == null || !IsTargetValid(currentTarget))
+        {
+            currentState = EnemyState.Chasing;
+            return;
+        }
+
         if (distanceToTarget > attackRange * 1.2f)
         {
             currentState = EnemyState.Chasing;
@@ -230,6 +333,28 @@ public abstract class EnemyAI : MonoBehaviour
             AttackImplementation();
             lastAttackTime = Time.time;
         }
+    }
+
+    protected bool IsTargetValid(Transform target)
+    {
+        if (target == null) return false;
+        if (!target.gameObject.activeInHierarchy) return false;
+
+        // Проверка здоровья игрока
+        if (target == playerTransform && playerHealth != null)
+            return playerHealth.currentHealth > 0;
+
+        // Проверка здоровья компаньона
+        CompanionHealth companion = target.GetComponent<CompanionHealth>();
+        if (companion != null)
+            return companion.currentHealth > 0;
+
+        // Проверка здоровья врага
+        EnemyHealth enemy = target.GetComponent<EnemyHealth>();
+        if (enemy != null)
+            return !enemy.isDead;
+
+        return true;
     }
 
     protected virtual void UpdateReturning(float distanceToTarget)
