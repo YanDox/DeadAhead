@@ -15,13 +15,16 @@ public class EnemyHealth : MonoBehaviour, IEntity
 	[Header("Damage Feedback")]
 	public GameObject damageEffectPrefab; // Префаб эффекта получения урона
 	public float effectDuration = 0.3f; // Длительность эффекта
-	private Inventory playerInv;
+    public bool isDead { get; private set; }
+
+    private Inventory playerInv;
 
 	void Start()
 	{
 		currentHealth = maxHealth;
 		playerInv = FindObjectOfType<Inventory>();
-	}
+        isDead = false;
+    }
 
 	public void ApplyDamage(float damage)
 	{
@@ -30,7 +33,9 @@ public class EnemyHealth : MonoBehaviour, IEntity
 
 	public void TakeDamage(int damage)
 	{
-		currentHealth -= damage;
+        if (isDead) return;
+
+        currentHealth -= damage;
 
 		if (currentHealth <= 0)
 		{
@@ -54,13 +59,22 @@ public class EnemyHealth : MonoBehaviour, IEntity
 
 	void Die()
 	{
-		var zombieAI = GetComponent<Zombie>();
-		if (zombieAI != null) zombieAI.enabled = false;
+        isDead = true;
 
-		var collider = GetComponent<Collider>();
-		if (collider != null) collider.enabled = false;
+        var enemyAI = GetComponent<EnemyAI>();
+		if (enemyAI != null) enemyAI.enabled = false;
 
-		if (deathEffect != null)
+        foreach (var col in GetComponentsInChildren<Collider>())
+            col.enabled = false;
+
+        Rigidbody rb = GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.isKinematic = true;
+            rb.detectCollisions = false;
+        }
+
+        if (deathEffect != null)
 		{
 			Instantiate(deathEffect, transform.position, Quaternion.identity);
 		}
