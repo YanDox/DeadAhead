@@ -19,7 +19,7 @@ public class Psycho : EnemyAI
 
     protected override void FindAllTargets()
     {
-        base.FindAllTargets(); // ������� ����� ����������� � ������
+        base.FindAllTargets(); 
 
         zombiesInRange.Clear();
         int numZombies = Physics.OverlapSphereNonAlloc(
@@ -32,22 +32,25 @@ public class Psycho : EnemyAI
         for (int i = 0; i < numZombies; i++)
         {
             Zombie zombie = hitColliders[i].GetComponent<Zombie>();
-            if (zombie != null) zombiesInRange.Add(zombie);
+            // Решение: добавить проверку на живучесть
+            if (zombie != null && !zombie.GetComponent<EnemyHealth>().isDead)
+            {
+                zombiesInRange.Add(zombie);
+            }
         }
     }
 
     protected override Transform GetSpecialTarget()
     {
-        // ��� ����� ����������� ���� - ��������� �����
         Zombie closestZombie = null;
         float minDistance = float.MaxValue;
 
         foreach (var zombie in zombiesInRange)
         {
-            if (zombie != null)
+            if (zombie != null && !zombie.GetComponent<EnemyHealth>().isDead)
             {
                 float distance = Vector3.Distance(transform.position, zombie.transform.position);
-                if (distance < minDistance)
+                if (distance < minDistance && distance <= detectionRadius)
                 {
                     minDistance = distance;
                     closestZombie = zombie;
@@ -85,24 +88,24 @@ public class Psycho : EnemyAI
                 return;
             }
 
+            // Атака зомби
             if (currentTarget.CompareTag("Zombie"))
             {
                 EnemyHealth zombieHealth = currentTarget.GetComponent<EnemyHealth>();
                 if (zombieHealth != null)
                 {
+                    // Сохраняем ссылку перед атакой
+                    Transform originalTarget = currentTarget;
+
                     zombieHealth.TakeDamage(attackDamage);
 
-                    // ���� ���� ������ � ����� ������� � ���� �����
-                    if (zombieHealth.isDead)
+                    // Проверяем состояние цели ПОСЛЕ атаки
+                    if (zombieHealth.isDead && currentTarget == originalTarget)
                     {
                         currentTarget = null;
-                        currentState = EnemyState.Returning;
                     }
-                    return;
                 }
-
-                FindAllTargets();
-                ChooseMainTarget();
+                return;
             }
         }
         EnemyHealth enemy = currentTarget.GetComponent<EnemyHealth>();
@@ -110,7 +113,6 @@ public class Psycho : EnemyAI
         {
             enemy.TakeDamage(attackDamage);
 
-            // ���� ���� ������ � ����� ������� � ���� �����
             if (enemy.isDead)
             {
                 currentTarget = null;

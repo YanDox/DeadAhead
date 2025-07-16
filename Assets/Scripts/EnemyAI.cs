@@ -37,11 +37,13 @@ public abstract class EnemyAI : MonoBehaviour
     protected float lastAttackTime;
 
     [Header("Enemy Interactions")]
-    public string[] enemyTags = new string[0]; // ���� ������ ��� �����
+    public string[] enemyTags = new string[0];
     public bool canAttackOtherEnemies = true;
 
     protected Transform playerTransform;
+    protected Transform enemyTransform;
     protected PlayerHealth playerHealth;
+    protected EnemyHealth enemyHealth;
     protected List<CompanionHealth> companionsInRange = new List<CompanionHealth>();
     protected Collider[] hitColliders = new Collider[20];
 
@@ -61,14 +63,15 @@ public abstract class EnemyAI : MonoBehaviour
 
         if (currentTarget == null)
         {
+            return;
             if (currentState != EnemyState.Patrolling && currentState != EnemyState.Returning)
             {
                 currentState = EnemyState.Returning;
-                SafeSetDestination(spawnPosition);
+                navMeshAgent.SetDestination(spawnPosition);
             }
         }
 
-        if (currentTarget == null) return;
+        //if (currentTarget == null) return;
 
         float distanceToTarget = Vector3.Distance(transform.position, currentTarget.position);
 
@@ -94,58 +97,6 @@ public abstract class EnemyAI : MonoBehaviour
         UpdateAnimation();
     }
 
-    protected Transform FindClosestEnemy()
-    {
-        if (enemyTags == null || enemyTags.Length == 0) return null;
-
-        Transform closestEnemy = null;
-        float minDistance = float.MaxValue;
-
-        // ���������� ������������ ������ ��� OverlapSphere
-        int hitCount = Physics.OverlapSphereNonAlloc(
-            transform.position,
-            detectionRadius,
-            hitColliders
-        );
-
-        for (int i = 0; i < hitCount; i++)
-        {
-            GameObject enemyObj = hitColliders[i].gameObject;
-
-            // ���������� ����
-            if (enemyObj == gameObject) continue;
-
-            // ��������� ���
-            bool validTag = false;
-            foreach (string tag in enemyTags)
-            {
-                if (enemyObj.CompareTag(tag))
-                {
-                    validTag = true;
-                    break;
-                }
-            }
-            if (!validTag) continue;
-
-            // ���������, ��� ���� ���
-            EnemyHealth health = enemyObj.GetComponent<EnemyHealth>();
-            if (health != null && health.isDead) continue;
-
-            // ���������, ��� ��� ����
-            EnemyAI enemyAI = enemyObj.GetComponent<EnemyAI>();
-            if (enemyAI == null) continue;
-
-            float distance = Vector3.Distance(transform.position, enemyObj.transform.position);
-            if (distance < minDistance)
-            {
-                minDistance = distance;
-                closestEnemy = enemyObj.transform;
-            }
-        }
-
-        return closestEnemy;
-    }
-
     protected virtual void FindAllTargets()
     {
         FindCompanions();
@@ -158,74 +109,76 @@ public abstract class EnemyAI : MonoBehaviour
 
     protected virtual void ChooseMainTarget()
     {
-        if (currentTarget != null)
-    {
-        bool shouldClear = false;
-
-        if (!currentTarget.gameObject.activeInHierarchy)
-        {
-            shouldClear = true;
-        }
-        else
-        {
-            EnemyHealth enemyHealth = currentTarget.GetComponent<EnemyHealth>();
-            if (enemyHealth != null && enemyHealth.isDead)
-            {
-                shouldClear = true;
-            }
-
-            CompanionHealth companionHealth = currentTarget.GetComponent<CompanionHealth>();
-            if (companionHealth != null && companionHealth.currentHealth <= 0)
-            {
-                shouldClear = true;
-            }
-
-            if (currentTarget == playerTransform && playerHealth != null && playerHealth.currentHealth <= 0)
-            {
-                shouldClear = true;
-            }
-        }
-
-        if (shouldClear)
-        {
-            Debug.Log($"{gameObject.name}: Clearing dead or invalid target: {currentTarget.name}");
-            currentTarget = null;
-            currentState = EnemyState.Returning;
-        }
-    }
-
-        if (currentState == EnemyState.Attacking) return;
-
-        // 1. ���������: ��������� ����� ���������
+        // 1. Приоритет: ближайший живой компаньон
         CompanionHealth closestCompanion = FindClosestCompanion();
         if (closestCompanion != null)
         {
-            float distanceToCompanion = Vector3.Distance(transform.position, closestCompanion.transform.position);
-            if (distanceToCompanion <= detectionRadius)
-            {
-                Debug.Log($"{gameObject.name} targeting companion: {closestCompanion.name}");
-                currentTarget = closestCompanion.transform;
-                return;
-            }
+            currentTarget = closestCompanion.transform;
+            return;
         }
 
-        // 2. ���������: ����� (���� ���)
-        float playerDistance = Vector3.Distance(transform.position, playerTransform.position);
-        if (playerHealth != null && playerHealth.currentHealth > 0 && playerDistance <= detectionRadius)
+        // 2. Приоритет: игрок (если жив)
+        if (playerHealth != null && playerHealth.currentHealth > 0)
         {
-            Debug.Log($"{gameObject.name} targeting player.");
             currentTarget = playerTransform;
             return;
         }
 
-        // 3. ���������: ����������� ���� (����������� � �������� �������)
+        // 3. Приоритет: специальная цель (реализуется в дочерних классах)
         currentTarget = GetSpecialTarget();
-
-        if (currentTarget != null)
-        {
-            Debug.Log($"{gameObject.name} targeting special: {currentTarget.name}");
-        }
     }
+
+    //// 1. Приоритет: ближайший живой компаньон
+    //protected virtual void ChooseMainTarget()
+    //{
+    //    // 0. Если текущая цель валидна - оставляем её
+    //    if (currentTarget != null && IsTargetValid(currentTarget))
+    //    {
+    //        // Проверяем расстояние для текущей цели
+    //        float distance = Vector3.Distance(transform.position, currentTarget.position);
+
+    //        // Если цель в пределах chaseRadius - продолжаем преследовать
+    //        if (distance <= chaseRadius)
+    //        {
+    //            return;
+    //        }
+    //    }
+
+    //    // 1. Проверка компаньонов с расстоянием
+    //    CompanionHealth closestCompanion = FindClosestCompanion();
+    //    if (closestCompanion != null)
+    //    {
+    //        float companionDistance = Vector3.Distance(transform.position, closestCompanion.transform.position);
+    //        if (companionDistance <= detectionRadius)
+    //        {
+    //            currentTarget = closestCompanion.transform;
+    //            return;
+    //        }
+    //    }
+
+    //    // 2. Проверка игрока с расстоянием
+    //    if (playerTransform != null && playerHealth != null && playerHealth.currentHealth > 0)
+    //    {
+    //        float playerDistance = Vector3.Distance(transform.position, playerTransform.position);
+    //        if (playerDistance <= detectionRadius)
+    //        {
+    //            currentTarget = playerTransform;
+    //            return;
+    //        }
+    //    }
+
+    //    // 3. Специальная цель с проверкой расстояния
+    //    Transform specialTarget = GetSpecialTarget();
+    //    if (specialTarget != null)
+    //    {
+    //        float specialDistance = Vector3.Distance(transform.position, specialTarget.position);
+    //        if (specialDistance <= detectionRadius)
+    //        {
+    //            currentTarget = specialTarget;
+    //            return;
+    //        }
+    //    }
+    //}
 
     private void FindPlayer()
     {
@@ -312,7 +265,7 @@ public abstract class EnemyAI : MonoBehaviour
         if (currentTarget == null || distanceToTarget > chaseRadius)
         {
             currentState = EnemyState.Returning;
-            SafeSetDestination(spawnPosition);
+            navMeshAgent.SetDestination(spawnPosition);
             return;
         }
 
@@ -355,22 +308,19 @@ public abstract class EnemyAI : MonoBehaviour
 
     protected bool IsTargetValid(Transform target)
     {
-        if (target.CompareTag(gameObject.tag)) // �������� "�������������� ����"
+        if (target.CompareTag(gameObject.tag))
             return false;
 
         if (target == null) return false;
         if (!target.gameObject.activeInHierarchy) return false;
 
-        // �������� �������� ������
         if (target == playerTransform && playerHealth != null)
             return playerHealth.currentHealth > 0;
 
-        // �������� �������� ����������
         CompanionHealth companion = target.GetComponent<CompanionHealth>();
         if (companion != null)
             return companion.currentHealth > 0;
 
-        // �������� �������� �����
         EnemyHealth enemy = target.GetComponent<EnemyHealth>();
         if (enemy != null)
             return !enemy.isDead;
@@ -388,7 +338,7 @@ public abstract class EnemyAI : MonoBehaviour
 
         if (navMeshAgent.destination != spawnPosition)
         {
-            SafeSetDestination(spawnPosition);
+            navMeshAgent.SetDestination(spawnPosition);
         }
 
         if (!navMeshAgent.pathPending && navMeshAgent.remainingDistance <= navMeshAgent.stoppingDistance)
@@ -400,19 +350,12 @@ public abstract class EnemyAI : MonoBehaviour
 
     protected virtual void SetRandomPatrolPoint(int attempts = 5)
     {
-        Debug.Log(attempts);
-        if (!navMeshAgent.isOnNavMesh)
-        {
-            Debug.Log("Attempted to set patrol point while agent not on NavMesh");
-            return;
-        }
-
         Vector3 randomDirection = Random.insideUnitSphere * patrolRadius;
         randomDirection += spawnPosition;
 
         if (attempts <= 0)
         {
-            SafeSetDestination(spawnPosition);
+            navMeshAgent.SetDestination(spawnPosition);
             return;
         }
 
@@ -427,20 +370,6 @@ public abstract class EnemyAI : MonoBehaviour
             }
         }
         SetRandomPatrolPoint(attempts - 1);
-    }
-
-    protected void SafeSetDestination(Vector3 targetPosition)
-    {
-        if (navMeshAgent != null &&
-            navMeshAgent.isActiveAndEnabled &&
-            navMeshAgent.isOnNavMesh)
-        {
-            navMeshAgent.SetDestination(targetPosition);
-        }
-        else
-        {
-            Debug.LogWarning("Attempted to set destination while agent is inactive or not on NavMesh");
-        }
     }
 
     protected virtual void UpdateAnimation()

@@ -50,11 +50,11 @@ public class Zombie : EnemyAI
 
     protected override Transform GetSpecialTarget()
     {
-        // Для зомби специальная цель - псих
         if (psychoHealth != null && psychoHealth.currentHealth > 0 && !psychoHealth.isDead)
         {
+            // Решение: добавить проверку расстояния
             float dist = Vector3.Distance(transform.position, psychoTransform.position);
-            if (dist <= detectionRadius) // <-- ЭТО ДОБАВИЛСЯ ПОСЛЕ
+            if (dist <= detectionRadius)
             {
                 return psychoTransform;
             }
@@ -86,24 +86,26 @@ public class Zombie : EnemyAI
                 return;
             }
 
+            // Основная логика атаки
             if (currentTarget == psychoTransform && psychoHealth != null)
             {
-                psychoHealth.TakeDamage(attackDamage);
-                // Принудительное обновление целей
-                FindAllTargets();
-                ChooseMainTarget();
-                if (psychoHealth != null)
-                {
-                    psychoHealth.TakeDamage(attackDamage);
+                // Сохраняем ссылку перед атакой
+                EnemyHealth targetHealth = psychoHealth;
 
-                    // если цель умерла — сразу очищаем и ищем новую
-                    if (psychoHealth.isDead)
+                targetHealth.TakeDamage(attackDamage);
+
+                // Проверяем состояние цели ПОСЛЕ атаки
+                if (targetHealth.isDead)
+                {
+                    // Сбрасываем только если текущая цель - псих
+                    if (currentTarget == psychoTransform)
                     {
                         currentTarget = null;
-                        currentState = EnemyState.Returning;
+                        psychoTransform = null;
+                        psychoHealth = null;
                     }
-                    return;
                 }
+                return;
             }
         }
     }
