@@ -58,6 +58,15 @@ public abstract class EnemyAI : MonoBehaviour
         FindAllTargets();
         ChooseMainTarget();
 
+        if (currentTarget == null)
+        {
+            if (currentState != EnemyState.Patrolling && currentState != EnemyState.Returning)
+            {
+                currentState = EnemyState.Returning;
+                navMeshAgent.SetDestination(spawnPosition);
+            }
+        }
+
         if (currentTarget == null) return;
 
         float distanceToTarget = Vector3.Distance(transform.position, currentTarget.position);
