@@ -6,7 +6,6 @@ public class CompanionHealth : MonoBehaviour, IEntity
     [Header("Health Settings")]
     public int maxHealth = 80;
     public int currentHealth;
-    public float deathAnimationTime = 1f;
     public GameObject deathEffect;
     public GameObject zombiePrefab;
     public bool isDead = false;
@@ -16,11 +15,13 @@ public class CompanionHealth : MonoBehaviour, IEntity
     public float effectDuration = 0.3f;
 
     private CompanionAI companionAI;
+    private Collider companionCollider;
 
     void Start()
     {
         currentHealth = maxHealth;
         companionAI = GetComponent<CompanionAI>();
+        companionCollider = GetComponent<Collider>();
     }
 
     public void TakeDamage(int damage)
@@ -58,40 +59,33 @@ public class CompanionHealth : MonoBehaviour, IEntity
         isDead = true;
 
         if (companionAI != null) companionAI.enabled = false;
-        var collider = GetComponent<Collider>();
-        if (collider != null) collider.enabled = false;
+        if (companionCollider != null) companionCollider.enabled = false;
+
+        foreach (Renderer r in GetComponentsInChildren<Renderer>())
+        {
+            r.enabled = false;
+        }
 
         if (deathEffect != null)
         {
             Instantiate(deathEffect, transform.position, Quaternion.identity);
         }
 
-        StartCoroutine(ReplaceWithZombieAfterDelay());
-    }
-
-    IEnumerator ReplaceWithZombieAfterDelay()
-    {
-        yield return new WaitForSeconds(deathAnimationTime);
-
         if (zombiePrefab != null)
         {
-            GameObject zombieInstance = Instantiate(zombiePrefab, transform.position, transform.rotation);
-            zombieInstance.SetActive(false);
+            Vector3 spawnPosition = transform.position;
+            FindNearestNavMeshPoint(transform.position, 2f, out spawnPosition);
 
-            if (FindNearestNavMeshPoint(transform.position, 2f, out Vector3 spawnPosition))
-            {
-                zombieInstance.transform.position = spawnPosition;
-            }
-
-            zombieInstance.SetActive(true);
+            Instantiate(zombiePrefab, spawnPosition, transform.rotation);
         }
 
-        Destroy(gameObject);
+        Destroy(gameObject, 0.1f);
     }
 
     bool FindNearestNavMeshPoint(Vector3 position, float maxDistance, out Vector3 result)
     {
-        if (UnityEngine.AI.NavMesh.SamplePosition(position, out UnityEngine.AI.NavMeshHit hit, maxDistance, UnityEngine.AI.NavMesh.AllAreas))
+        UnityEngine.AI.NavMeshHit hit;
+        if (UnityEngine.AI.NavMesh.SamplePosition(position, out hit, maxDistance, UnityEngine.AI.NavMesh.AllAreas))
         {
             result = hit.position;
             return true;
