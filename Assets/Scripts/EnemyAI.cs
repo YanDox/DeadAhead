@@ -308,6 +308,13 @@ public abstract class EnemyAI : MonoBehaviour
 
         navMeshAgent.SetDestination(currentTarget.position);
 
+        if (!IsTargetValid(currentTarget))
+        {
+            currentTarget = null;
+            currentState = EnemyState.Returning;
+            return;
+        }
+
         if (distanceToTarget <= attackRange)
         {
             currentState = EnemyState.Attacking;
@@ -318,6 +325,7 @@ public abstract class EnemyAI : MonoBehaviour
     {
         if (currentTarget == null || !IsTargetValid(currentTarget))
         {
+            Debug.Log($"{gameObject.name} lost target or invalid: switching to chasing.");
             currentState = EnemyState.Chasing;
             return;
         }
@@ -337,6 +345,9 @@ public abstract class EnemyAI : MonoBehaviour
 
     protected bool IsTargetValid(Transform target)
     {
+        if (target.CompareTag(gameObject.tag)) // избегаем "дружественного огня"
+            return false;
+
         if (target == null) return false;
         if (!target.gameObject.activeInHierarchy) return false;
 

@@ -145,6 +145,9 @@ MonoBehaviour:
   companionLayer:
     serializedVersion: 2
     m_Bits: 128
+  enemyTags:
+  - Psycho
+  canAttackOtherEnemies: 1
 --- !u!195 &9011643454315067474
 NavMeshAgent:
   m_ObjectHideFlags: 0

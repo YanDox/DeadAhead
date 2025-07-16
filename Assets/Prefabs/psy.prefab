@@ -59,6 +59,9 @@ MonoBehaviour:
   companionLayer:
     serializedVersion: 2
     m_Bits: 128
+  enemyTags:
+  - Zombie
+  canAttackOtherEnemies: 1
   zombieLayer:
     serializedVersion: 2
     m_Bits: 8

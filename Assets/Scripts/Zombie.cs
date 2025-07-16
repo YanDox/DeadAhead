@@ -92,6 +92,18 @@ public class Zombie : EnemyAI
                 // Принудительное обновление целей
                 FindAllTargets();
                 ChooseMainTarget();
+                if (psychoHealth != null)
+                {
+                    psychoHealth.TakeDamage(attackDamage);
+
+                    // если цель умерла — сразу очищаем и ищем новую
+                    if (psychoHealth.isDead)
+                    {
+                        currentTarget = null;
+                        currentState = EnemyState.Returning;
+                    }
+                    return;
+                }
             }
         }
     }

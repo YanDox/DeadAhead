@@ -88,11 +88,35 @@ public class Psycho : EnemyAI
             if (currentTarget.CompareTag("Zombie"))
             {
                 EnemyHealth zombieHealth = currentTarget.GetComponent<EnemyHealth>();
-                if (zombieHealth != null) zombieHealth.TakeDamage(attackDamage);
+                if (zombieHealth != null)
+                {
+                    zombieHealth.TakeDamage(attackDamage);
+
+                    // если цель умерла Ч сразу очищаем и ищем новую
+                    if (zombieHealth.isDead)
+                    {
+                        currentTarget = null;
+                        currentState = EnemyState.Returning;
+                    }
+                    return;
+                }
 
                 FindAllTargets();
                 ChooseMainTarget();
             }
+        }
+        EnemyHealth enemy = currentTarget.GetComponent<EnemyHealth>();
+        if (enemy != null)
+        {
+            enemy.TakeDamage(attackDamage);
+
+            // если цель умерла Ч сразу очищаем и ищем новую
+            if (enemy.isDead)
+            {
+                currentTarget = null;
+                currentState = EnemyState.Returning;
+            }
+            return;
         }
     }
 
