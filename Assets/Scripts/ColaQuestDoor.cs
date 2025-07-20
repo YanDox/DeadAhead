@@ -1,10 +1,15 @@
 using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
 
 public class ColaQuestDoor : MonoBehaviour
 {
 	public GameObject busPartPrefab; // Префаб детали автобуса для выдачи
 	public Transform dropPoint; // Точка, куда выкидывать деталь
 	public string questMessage = "Принесите мне ящик колы!";
+	public GameObject Ui;
+	public Text text;
+	public TMP_Text colaText;
 
 	void OnTriggerEnter(Collider other)
 	{
@@ -13,6 +18,7 @@ public class ColaQuestDoor : MonoBehaviour
 			Inventory inventory = other.GetComponent<Inventory>();
 			if (inventory != null)
 			{
+				Ui.active = true;
 				// Проверяем есть ли у игрока ящик колы
 				if (inventory.UseItem(CrateOfCola.COLA_CRATE))
 				{
@@ -21,17 +27,23 @@ public class ColaQuestDoor : MonoBehaviour
 					{
 						Instantiate(busPartPrefab, dropPoint.position, dropPoint.rotation);
 						Debug.Log("Деталь автобуса выброшена из двери!");
+						text.text = ("Деталь автобуса выброшена из двери!");
+						
 					}
 
-					// Можно добавить анимацию открытия двери и т.д.
+					
 				}
 				else
 				{
-					// Показываем сообщение о квесте
+					text.text = questMessage;
 					Debug.Log(questMessage);
-					// Здесь можно добавить UI-сообщение для игрока
+					
 				}
 			}
 		}
+	}
+	private void OnTriggerExit(Collider other)
+	{
+		Ui.active = false;
 	}
 }

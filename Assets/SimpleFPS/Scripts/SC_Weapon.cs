@@ -83,8 +83,8 @@ public class SC_Weapon : MonoBehaviour
 						currentBulletsInMagazine--;
 					}
 
-					audioSource.clip = fireAudio;
-					audioSource.Play();
+					//audioSource.clip = fireAudio;
+					//audioSource.Play();
 				}
 				else
 				{

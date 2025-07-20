@@ -90,13 +90,17 @@ public class CompanionAI : MonoBehaviour
     private Coroutine escapeRoutine;
     private Coroutine nothingRoutine;
     private Coroutine attackRoutine;
-    //private Animator animator;
 
-    #endregion
+	[Header("Animation Settings")]
+	public Animator animator;
+	public string runAnimationParam = "IsRunning";
+	public string attackAnimationTrigger = "Attack";
+	public string idleAnimationParam = "IsIdle";
+	#endregion
 
-#region Start
+	#region Start
 
-    void Start()
+	void Start()
     {
         StartCoroutine(ThreatCheckRoutine());
         FindWorkshop();
@@ -123,7 +127,9 @@ public class CompanionAI : MonoBehaviour
 
     void Update()
     {
-        HandleRotation();
+
+		HandleAnimation();
+		HandleRotation();
         CheckWorkshopDetection();
 
         if (health.isDead)
@@ -180,10 +186,27 @@ public class CompanionAI : MonoBehaviour
         }
     }
 
-    #endregion
+	#endregion
 
-#region Staying
-    private void UpdateStaying()
+	private void HandleAnimation()
+	{
+		if (animator == null) return;
+
+		// Бег
+		bool isRunning = agent.velocity.magnitude > 0.1f &&
+						(currentState == CompanionState.Following ||
+						 currentState == CompanionState.Getaway ||
+						 currentState == CompanionState.Defense);
+		animator.SetBool(runAnimationParam, isRunning);
+
+		// Покой
+		bool isIdle = agent.velocity.magnitude < 0.1f &&
+					  (currentState == CompanionState.Staying ||
+					   currentState == CompanionState.Retreating);
+		animator.SetBool(idleAnimationParam, isIdle);
+	}
+	#region Staying
+	private void UpdateStaying()
     {
         agent.isStopped = true;
 
@@ -370,46 +393,49 @@ public class CompanionAI : MonoBehaviour
         }
     }
 
-    private IEnumerator PerformAttack()
-    {
-        try
-        {
-            // if (animator != null) animator.SetTrigger("Attack");
+	private IEnumerator PerformAttack()
+	{
+		try
+		{
+			if (animator != null)
+			{
+				animator.SetTrigger(attackAnimationTrigger);
+				yield return new WaitForSeconds(0.1f); // Задержка для начала анимации
+			}
 
-            if (currentTarget != null && currentTarget.gameObject.activeInHierarchy)
-            {
-                EnemyHealth zombieHealth = currentTarget.GetComponent<EnemyHealth>();
-                if (zombieHealth != null)
-                {
-                    zombieHealth.ApplyDamage(attackDamage);
+			if (currentTarget != null && currentTarget.gameObject.activeInHierarchy)
+			{
+				EnemyHealth zombieHealth = currentTarget.GetComponent<EnemyHealth>();
+				if (zombieHealth != null)
+				{
+					zombieHealth.ApplyDamage(attackDamage);
 
-                    if (zombieHealth.currentHealth <= 0)
-                    {
-                        EndReaction();
-                        yield break;
-                    }
-                }
-            }
+					if (zombieHealth.currentHealth <= 0)
+					{
+						EndReaction();
+						yield break;
+					}
+				}
+			}
 
-            yield return new WaitForSeconds(attackDuration);
+			yield return new WaitForSeconds(attackDuration);
 
-            if (currentTarget == null || !currentTarget.gameObject.activeInHierarchy ||
-                Vector3.Distance(transform.position, currentTarget.position) > attackDistance)
-            {
-                EndReaction();
-            }
-        }
+			if (currentTarget == null || !currentTarget.gameObject.activeInHierarchy ||
+				Vector3.Distance(transform.position, currentTarget.position) > attackDistance)
+			{
+				EndReaction();
+			}
+		}
+		finally
+		{
+			attackRoutine = null;
+		}
+	}
 
-        finally
-        {
-            attackRoutine = null;
-        }
-    }
+	#endregion
 
-    #endregion
-
-#region Getaway
-    private IEnumerator EscapeFromThreat(Transform threatTarget)
+	#region Getaway
+	private IEnumerator EscapeFromThreat(Transform threatTarget)
     {
         if (threatTarget == null)
         {
