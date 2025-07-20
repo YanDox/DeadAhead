@@ -91,11 +91,16 @@ public class CompanionAI : MonoBehaviour
     private Coroutine nothingRoutine;
     private Coroutine attackRoutine;
 
+	
 	[Header("Animation Settings")]
 	public Animator animator;
 	public string runAnimationParam = "IsRunning";
 	public string attackAnimationTrigger = "Attack";
 	public string idleAnimationParam = "IsIdle";
+	public string repairAnimationTrigger = "Repair"; // Новый параметр для анимации ремонта
+	public string repairInProgressParam = "IsRepairing"; // Bool параметр для длительной анимации
+
+	private bool isRepairing = false;
 	#endregion
 
 	#region Start
@@ -780,82 +785,110 @@ public class CompanionAI : MonoBehaviour
         currentState = CompanionState.Repair;
         Debug.Log($"Начало ремонта. Предыдущее состояние стояния");
     }
+	private void UpdateRepair()
+	{
+		if (workshop == null)
+		{
+			FindWorkshop();
+			if (workshop == null)
+			{
+				ExitRepairState();
+				return;
+			}
+		}
 
-    private void UpdateRepair()
-    {
+		Vector3 repairPosition = currentWorkshop.GetRepairPosition(transform.position);
+		float distanceToBus = Vector3.Distance(transform.position, repairPosition);
+		bool inPosition = distanceToBus <= repairStoppingDistance;
 
-        if (workshop == null)
-        {
-            FindWorkshop();
-            if (workshop == null)
-            {
-                ExitRepairState();
-                return;
-            }
-        }
+		if (currentWorkshop.installedParts >= currentWorkshop.requiredParts)
+		{
+			Debug.Log("Ремонт автобуса завершен!");
+			ExitRepairState();
+			return;
+		}
 
-        Vector3 repairPosition = currentWorkshop.GetRepairPosition(transform.position);
+		if (inventory.items[CompanionInventory.BUS_PART] <= 0)
+		{
+			Debug.Log("Детали закончились! Прерывание ремонта.");
+			ExitRepairState();
+			return;
+		}
 
-        float distanceToBus = Vector3.Distance(transform.position, repairPosition);
-        bool inPosition = distanceToBus <= repairStoppingDistance;
+		if (inPosition)
+		{
+			agent.isStopped = true;
 
-        if (currentWorkshop.installedParts >= currentWorkshop.requiredParts)
-        {
-            Debug.Log("Ремонт автобуса завершен!");
-            ExitRepairState();
-            return;
-        }
+			// Активация анимации ремонта
+			if (!isRepairing)
+			{
+				StartRepairAnimation();
+			}
 
-        if (inventory.items[CompanionInventory.BUS_PART] <= 0)
-        {
-            Debug.Log("Детали закончились! Прерывание ремонта.");
-            ExitRepairState();
-            return;
-        }
+			// Устанавливаем деталь
+			if (currentWorkshop.TryRepair(inventory))
+			{
+				Debug.Log("Деталь успешно установлена");
+				ExitRepairState();
+			}
+		}
+		else
+		{
+			// Отмена анимации ремонта при движении
+			if (isRepairing)
+			{
+				StopRepairAnimation();
+			}
 
-        if (inPosition)
-        {
-            agent.isStopped = true;
-            Debug.Log("В позиции для ремонта...");
+			agent.isStopped = false;
+			agent.SetDestination(repairPosition);
 
-            // Устанавливаем деталь
-            if (currentWorkshop.TryRepair(inventory))
-            {
-                Debug.Log("Деталь успешно установлена");
-                ExitRepairState();
-            }
-        }
-        else
-        {
-            Debug.Log($"Движение к точке ремонта (расстояние: {distanceToBus:F1})");
-            agent.isStopped = false;
-            agent.SetDestination(repairPosition);
+			if (agent.velocity.sqrMagnitude < 0.1f && distanceToBus > 1f)
+			{
+				repairPosition = currentWorkshop.GetRepairPosition(transform.position);
+				agent.SetDestination(repairPosition);
+			}
+		}
+	}
 
-            // Простая проверка застревания
-            if (agent.velocity.sqrMagnitude < 0.1f && distanceToBus > 1f)
-            {
-                Debug.Log("Перенаправление к новой точке ремонта");
-                repairPosition = currentWorkshop.GetRepairPosition(transform.position);
-                agent.SetDestination(repairPosition);
-            }
-        }
-    }
+	private void StartRepairAnimation()
+	{
+		isRepairing = true;
+		if (animator != null)
+		{
+			// Для одноразовой анимации
+			animator.SetTrigger(repairAnimationTrigger);
 
-    private void ExitRepairState()
-    {
-        if (currentWorkshop != null)
-        {
-            currentWorkshop.ResetRepair();
-        }
+			// Или для циклической анимации
+			animator.SetBool(repairInProgressParam, true);
+		}
+	}
 
-        agent.stoppingDistance = defaultStoppingDistance;
+	private void StopRepairAnimation()
+	{
+		isRepairing = false;
+		if (animator != null)
+		{
+			animator.SetBool(repairInProgressParam, false);
+		}
+	}
 
-        RetreatFromBus();
-    }
-    #endregion
+	private void ExitRepairState()
+	{
+		StopRepairAnimation();
 
-#region Retreating
-    private void RetreatFromBus()
+		if (currentWorkshop != null)
+		{
+			currentWorkshop.ResetRepair();
+		}
+
+		agent.stoppingDistance = defaultStoppingDistance;
+		RetreatFromBus();
+	}
+	#endregion
+
+	#region Retreating
+	private void RetreatFromBus()
     {
         Debug.Log("Отход от автобуса после ремонта");
 
