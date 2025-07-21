@@ -29,8 +29,9 @@ public class UI : MonoBehaviour
     public Color lowHealthColor = Color.red;
     public float lowHealthThreshold = 0.3f;
     public Image healthBarImage; // Для изменения цвета
+	public GameObject qestUi;
 
-    private SC_WeaponManager weaponManager;
+	private SC_WeaponManager weaponManager;
     private Inventory inventory;
     private PlayerHealth playerHealth;
     private Vector3 targetHighlightPosition;
@@ -39,7 +40,8 @@ public class UI : MonoBehaviour
 
     void Start()
     {
-        weaponManager = FindObjectOfType<SC_WeaponManager>();
+		qestUi.active = false;
+		weaponManager = FindObjectOfType<SC_WeaponManager>();
         inventory = FindObjectOfType<Inventory>();
         playerHealth = FindObjectOfType<PlayerHealth>();
 
