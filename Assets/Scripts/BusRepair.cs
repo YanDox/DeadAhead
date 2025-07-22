@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class BusRepair : MonoBehaviour
 {
@@ -53,10 +54,14 @@ public class BusRepair : MonoBehaviour
             installedParts++;
             Debug.Log($"Установлена деталь ({installedParts}/{requiredParts})");
 
-            if (installedParts >= requiredParts)
+            if (installedParts == requiredParts)
+            {
                 Debug.Log("Автобус полностью отремонтирован!");
-                // Здесь можно добавить запуск кат-сцены
-            return true;
+				SceneManager.LoadScene(2);
+			}
+                
+			    
+			return true;
         }
         return false;
     }

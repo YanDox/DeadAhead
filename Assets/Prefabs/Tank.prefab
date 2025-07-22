@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 5551762163739406759}
   - component: {fileID: 8970254794234193671}
   - component: {fileID: 5641180570415505296}
+  - component: {fileID: 8092678228116023506}
   m_Layer: 6
   m_Name: Tank
   m_TagString: Zombie
@@ -126,6 +127,19 @@ NavMeshAgent:
   m_BaseOffset: 0
   m_WalkableMask: 4294967295
   m_ObstacleAvoidanceType: 4
+--- !u!65 &8092678228116023506
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4045587544085172841}
+  m_Material: {fileID: 0}
+  m_IsTrigger: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Size: {x: 1.6163089, y: 2.3036964, z: 1}
+  m_Center: {x: 0.09107408, y: 1.1654245, z: 0}
 --- !u!1001 &4390852778188122301
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -139,27 +153,27 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: be325a385aee81d498235e70b6c7f4f2, type: 3}
       propertyPath: m_LocalScale.x
-      value: 0.56172
+      value: 0.4358161
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: be325a385aee81d498235e70b6c7f4f2, type: 3}
       propertyPath: m_LocalScale.y
-      value: 0.56172
+      value: 0.4358161
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: be325a385aee81d498235e70b6c7f4f2, type: 3}
       propertyPath: m_LocalScale.z
-      value: 0.56172
+      value: 0.4358161
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: be325a385aee81d498235e70b6c7f4f2, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -0.31482
+      value: 0.06
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: be325a385aee81d498235e70b6c7f4f2, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1.7
+      value: 1.5712
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: be325a385aee81d498235e70b6c7f4f2, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0.017456
+      value: 0.285
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: be325a385aee81d498235e70b6c7f4f2, type: 3}
       propertyPath: m_LocalRotation.w

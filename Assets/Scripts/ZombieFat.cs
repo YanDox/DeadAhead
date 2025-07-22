@@ -117,13 +117,33 @@ public class ZombieFat : MonoBehaviour, IEntity
 
 	private void UpdatePatrolling(float distanceToPlayer)
 	{
+		// Check if agent is active and on NavMesh
+		if (!navMeshAgent.isActiveAndEnabled || !navMeshAgent.isOnNavMesh)
+		{
+			// Try to re-enable the agent if it's disabled
+			if (!navMeshAgent.isActiveAndEnabled)
+			{
+				navMeshAgent.enabled = true;
+			}
+
+			// If still not on NavMesh, warp to current position to re-establish connection
+			if (!navMeshAgent.isOnNavMesh)
+			{
+				navMeshAgent.Warp(transform.position);
+			}
+
+			return;
+		}
+
 		if (distanceToPlayer <= detectionRadius)
 		{
 			currentState = ZombieState.Chasing;
 			return;
 		}
 
-		if (!navMeshAgent.pathPending && navMeshAgent.remainingDistance <= navMeshAgent.stoppingDistance)
+		// Add additional check for path pending and valid path
+		if (!navMeshAgent.pathPending && navMeshAgent.hasPath &&
+			navMeshAgent.remainingDistance <= navMeshAgent.stoppingDistance)
 		{
 			SetRandomPatrolPoint();
 		}

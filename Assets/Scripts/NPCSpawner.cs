@@ -6,209 +6,203 @@ public class NPCSpawner : MonoBehaviour
 	[System.Serializable]
 	public class SpawnGroup
 	{
-		public GameObject npcPrefab;
-		public int spawnCount = 5;
-		public float spawnRadius = 20f;
-		public float minSpawnDistanceFromPlayer = 30f;
-		public float spawnDelay = 0f;
-		public bool spawnOnStart = true;
+		public GameObject prefab;
+		public int maxCount = 10;
+		public float spawnRadius = 5f;
+		public float minDistanceFromPlayer = 20f;
+		public float spawnInterval = 10f;
+		[HideInInspector] public List<GameObject> activeEntities = new List<GameObject>();
 	}
 
-	[Header("�������� ���������")]
-	public Terrain terrain;
-	public Transform playerTransform;
-	public List<SpawnGroup> spawnGroups = new List<SpawnGroup>();
+	[Header("Spawn Settings")]
+	public SpawnGroup[] enemyGroups;
+	public SpawnGroup[] companionGroups;
+	public LayerMask terrainLayer;
+	public LayerMask obstacleLayer;
+	public float spawnCheckHeight = 50f;
+	public float spawnCheckDistance = 100f;
 
-	[Header("��������� ����")]
-	public bool useWaves = false;
-	public float waveInterval = 60f;
-	public int maxTotalNPCs = 50;
-	public int npcsPerWaveIncrease = 5;
-
-	private float nextWaveTime;
-	private int currentWave = 0;
-	private List<GameObject> activeNPCs = new List<GameObject>();
+	private Transform player;
+	private Terrain terrain;
+	private float[] nextSpawnTimes;
 
 	void Start()
 	{
-		if (terrain == null)
+		player = GameObject.FindGameObjectWithTag("Player").transform;
+		terrain = Terrain.activeTerrain;
+		nextSpawnTimes = new float[enemyGroups.Length + companionGroups.Length];
+
+		// Initial spawn
+		for (int i = 0; i < enemyGroups.Length; i++)
 		{
-			terrain = Terrain.activeTerrain;
-			if (terrain == null)
-			{
-				Debug.LogError("�� ������ ������� ��� ������ NPC!");
-				enabled = false;
-				return;
-			}
+			SpawnInitialEntities(enemyGroups[i]);
+			nextSpawnTimes[i] = Time.time + enemyGroups[i].spawnInterval;
 		}
 
-		if (playerTransform == null)
+		for (int i = 0; i < companionGroups.Length; i++)
 		{
-			var player = GameObject.FindGameObjectWithTag("Player");
-			if (player != null) playerTransform = player.transform;
-		}
-
-		if (useWaves)
-		{
-			nextWaveTime = Time.time + waveInterval;
-		}
-		else
-		{
-			SpawnInitialNPCs();
+			int index = enemyGroups.Length + i;
+			SpawnInitialEntities(companionGroups[i]);
+			nextSpawnTimes[index] = Time.time + companionGroups[i].spawnInterval;
 		}
 	}
 
 	void Update()
 	{
-		if (useWaves && Time.time >= nextWaveTime)
+		// Check enemy spawns
+		for (int i = 0; i < enemyGroups.Length; i++)
 		{
-			SpawnWave();
-			nextWaveTime = Time.time + waveInterval;
-		}
-
-		// ������� ������������ NPC �� ������
-		activeNPCs.RemoveAll(npc => npc == null);
-	}
-
-	private void SpawnInitialNPCs()
-	{
-		foreach (var group in spawnGroups)
-		{
-			if (group.spawnOnStart)
+			if (Time.time >= nextSpawnTimes[i] && enemyGroups[i].activeEntities.Count < enemyGroups[i].maxCount)
 			{
-				if (group.spawnDelay > 0)
-				{
-					StartCoroutine(SpawnWithDelay(group));
-				}
-				else
-				{
-					SpawnNPCGroup(group);
-				}
+				TrySpawnEntity(enemyGroups[i]);
+				nextSpawnTimes[i] = Time.time + enemyGroups[i].spawnInterval;
 			}
 		}
+
+		// Check companion spawns
+		for (int i = 0; i < companionGroups.Length; i++)
+		{
+			int index = enemyGroups.Length + i;
+			if (Time.time >= nextSpawnTimes[index] && companionGroups[i].activeEntities.Count < companionGroups[i].maxCount)
+			{
+				TrySpawnEntity(companionGroups[i]);
+				nextSpawnTimes[index] = Time.time + companionGroups[i].spawnInterval;
+			}
+		}
+
+		// Clean up null references
+		CleanUpEntityLists();
 	}
 
-	private void SpawnWave()
+	private void SpawnInitialEntities(SpawnGroup group)
 	{
-		currentWave++;
-		Debug.Log($"������ ����� {currentWave}");
-
-		// ����������� ���������� NPC � ������ ������
-		foreach (var group in spawnGroups)
+		while (group.activeEntities.Count < group.maxCount)
 		{
-			var modifiedGroup = new SpawnGroup()
-			{
-				npcPrefab = group.npcPrefab,
-				spawnCount = group.spawnCount + (currentWave * npcsPerWaveIncrease),
-				spawnRadius = group.spawnRadius,
-				minSpawnDistanceFromPlayer = group.minSpawnDistanceFromPlayer,
-				spawnDelay = group.spawnDelay
-			};
+			TrySpawnEntity(group);
+		}
+	}
 
-			if (modifiedGroup.spawnDelay > 0)
+	private void TrySpawnEntity(SpawnGroup group)
+	{
+		Vector3 spawnPosition = FindSpawnPosition(group);
+		if (spawnPosition != Vector3.zero)
+		{
+			GameObject entity = Instantiate(group.prefab, spawnPosition, Quaternion.identity);
+			group.activeEntities.Add(entity);
+
+			// Setup death event to remove from list
+			var health = entity.GetComponent<EnemyHealth>();
+			if (health != null)
 			{
-				StartCoroutine(SpawnWithDelay(modifiedGroup));
+				health.OnDeath += () => group.activeEntities.Remove(entity);
 			}
 			else
 			{
-				SpawnNPCGroup(modifiedGroup);
+				var companionHealth = entity.GetComponent<CompanionHealth>();
+			
 			}
 		}
 	}
 
-	private System.Collections.IEnumerator SpawnWithDelay(SpawnGroup group)
+	private Vector3 FindSpawnPosition(SpawnGroup group)
 	{
-		yield return new WaitForSeconds(group.spawnDelay);
-		SpawnNPCGroup(group);
-	}
-
-	private void SpawnNPCGroup(SpawnGroup group)
-	{
-		if (group.npcPrefab == null)
+		for (int i = 0; i < 30; i++) // Try 30 times to find a valid position
 		{
-			Debug.LogWarning("������� ���������� NPC ��� �������!");
-			return;
-		}
+			// Get random point on terrain
+			Vector3 randomPoint = GetRandomTerrainPosition();
 
-		if (activeNPCs.Count >= maxTotalNPCs && maxTotalNPCs > 0)
-		{
-			Debug.Log("���������� ������������ ���������� NPC, ����� ����� �������");
-			return;
-		}
+			// Check distance from player
+			if (Vector3.Distance(randomPoint, player.position) < group.minDistanceFromPlayer)
+				continue;
 
-		for (int i = 0; i < group.spawnCount; i++)
-		{
-			if (activeNPCs.Count >= maxTotalNPCs && maxTotalNPCs > 0) break;
-
-			Vector3 spawnPos = FindSpawnPosition(group.minSpawnDistanceFromPlayer, group.spawnRadius);
-			if (spawnPos != Vector3.zero)
+			// Check if position is valid (not inside objects)
+			if (!Physics.CheckSphere(randomPoint, group.spawnRadius, obstacleLayer))
 			{
-				GameObject npc = Instantiate(group.npcPrefab, spawnPos, Quaternion.identity);
-				activeNPCs.Add(npc);
-				Debug.Log($"��������� {group.npcPrefab.name} � ������� {spawnPos}");
+				// Check if position is on terrain
+				if (IsPositionOnTerrain(randomPoint))
+				{
+					return randomPoint;
+				}
 			}
 		}
+
+		return Vector3.zero; // Failed to find position
 	}
 
-	private Vector3 FindSpawnPosition(float minDistanceFromPlayer, float spawnRadius)
+	private Vector3 GetRandomTerrainPosition()
 	{
-		if (playerTransform == null) return Vector3.zero;
-
-		Vector3 spawnPos = Vector3.zero;
-		bool positionFound = false;
-		int attempts = 0;
-		int maxAttempts = 30;
-
-		while (!positionFound && attempts < maxAttempts)
+		if (terrain != null)
 		{
-			attempts++;
-
-			// ���������� ��������� ����� � �������� ��������
 			Vector3 terrainSize = terrain.terrainData.size;
 			Vector3 terrainPos = terrain.transform.position;
 
-			float randomX = Random.Range(0, terrainSize.x);
-			float randomZ = Random.Range(0, terrainSize.z);
-			spawnPos = terrainPos + new Vector3(randomX, 0, randomZ);
+			float x = Random.Range(terrainPos.x, terrainPos.x + terrainSize.x);
+			float z = Random.Range(terrainPos.z, terrainPos.z + terrainSize.z);
+			float y = terrain.SampleHeight(new Vector3(x, 0, z)) + terrainPos.y;
 
-			// �������� ������ � ���� �����
-			spawnPos.y = terrain.SampleHeight(spawnPos) + terrain.transform.position.y;
-
-			// ��������� ���������� �� ������
-			float distanceToPlayer = Vector3.Distance(spawnPos, playerTransform.position);
-			if (distanceToPlayer < minDistanceFromPlayer)
-			{
-				continue;
-			}
-
-			// ���������, ��� ����� �������� �� NavMesh
-			UnityEngine.AI.NavMeshHit hit;
-			if (UnityEngine.AI.NavMesh.SamplePosition(spawnPos, out hit, spawnRadius, UnityEngine.AI.NavMesh.AllAreas))
-			{
-				spawnPos = hit.position;
-				positionFound = true;
-			}
+			return new Vector3(x, y, z);
 		}
-
-		return positionFound ? spawnPos : Vector3.zero;
+		else
+		{
+			// Fallback if no terrain - spawn in a large flat area
+			return new Vector3(
+				Random.Range(-100, 100),
+				0,
+				Random.Range(-100, 100)
+			);
+		}
 	}
 
-	public void ClearAllNPCs()
+	private bool IsPositionOnTerrain(Vector3 position)
 	{
-		foreach (var npc in activeNPCs)
+		if (terrain == null) return true;
+
+		Vector3 terrainPos = terrain.transform.position;
+		Vector3 terrainSize = terrain.terrainData.size;
+
+		return position.x >= terrainPos.x &&
+			   position.x <= terrainPos.x + terrainSize.x &&
+			   position.z >= terrainPos.z &&
+			   position.z <= terrainPos.z + terrainSize.z;
+	}
+
+	private void CleanUpEntityLists()
+	{
+		foreach (var group in enemyGroups)
 		{
-			if (npc != null) Destroy(npc);
+			group.activeEntities.RemoveAll(item => item == null);
 		}
-		activeNPCs.Clear();
+
+		foreach (var group in companionGroups)
+		{
+			group.activeEntities.RemoveAll(item => item == null);
+		}
 	}
 
 	private void OnDrawGizmosSelected()
 	{
-		if (terrain == null) return;
+		Gizmos.color = Color.red;
+		foreach (var group in enemyGroups)
+		{
+			foreach (var entity in group.activeEntities)
+			{
+				if (entity != null)
+				{
+					Gizmos.DrawWireSphere(entity.transform.position, 1f);
+				}
+			}
+		}
 
-		Gizmos.color = Color.green;
-		Vector3 size = terrain.terrainData.size;
-		Vector3 center = terrain.transform.position + size / 2;
-		Gizmos.DrawWireCube(center, size);
+		Gizmos.color = Color.blue;
+		foreach (var group in companionGroups)
+		{
+			foreach (var entity in group.activeEntities)
+			{
+				if (entity != null)
+				{
+					Gizmos.DrawWireSphere(entity.transform.position, 1f);
+				}
+			}
+		}
 	}
 }
