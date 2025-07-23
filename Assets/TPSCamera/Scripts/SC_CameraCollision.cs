@@ -5,19 +5,10 @@ public class SC_CameraCollision : MonoBehaviour
 	[Header("References")]
 	public Transform referenceTransform;
 
-
 	[Header("Collision Settings")]
 	public float collisionOffset = 0.3f;
 	public float cameraSpeed = 15f;
 	public float aimCameraSpeed = 20f;
-	public float collisionSmoothTime = 0.1f;
-
-	[Header("Camera Rotation Limits")]
-	public float minVerticalAngle = -30f;
-	public float maxVerticalAngle = 70f;
-	public float rotationSmoothness = 10f;
-	public float horizontalRotationSpeed = 5f;
-	public float verticalRotationSpeed = 5f;
 
 	[Header("Aim Settings")]
 	public Vector3 defaultAimOffset = new Vector3(0.5f, -0.2f, -1f);
@@ -26,15 +17,10 @@ public class SC_CameraCollision : MonoBehaviour
 	public Vector3 coverLeftOffset = new Vector3(-0.3f, -0.1f, -0.8f);
 	public float aimFOV = 40f;
 	public float aimTransitionSpeed = 10f;
-	public float aimPositionSmoothTime = 0.15f;
 	public KeyCode aimKey = KeyCode.Mouse1;
 	public KeyCode switchShoulderKey = KeyCode.Q;
 
-	[Header("Other Settings")]
-	public LayerMask collisionLayers = ~0;
-	public float cameraReturnSmoothness = 5f;
 	public Animator animator;
-
 	[Header("Debug")]
 	[SerializeField] private bool _isAiming = false;
 	[SerializeField] private bool _isRightShoulder = true;
@@ -47,10 +33,8 @@ public class SC_CameraCollision : MonoBehaviour
 	private float _defaultDistance;
 	private float _defaultFOV;
 	private float _currentFOV;
-	private Vector3 _cameraVelocity;
-	private float _currentXRotation = 0f;
-	private Vector3 _aimPositionVelocity;
-	private Vector3 _collisionPositionVelocity;
+	private Vector3 _cameraVelocity; // Для SmoothDamp
+	private Vector3 _lastAdjustedPos; // Кэширование позиции
 
 	public bool IsAiming => _isAiming;
 
@@ -70,8 +54,6 @@ public class SC_CameraCollision : MonoBehaviour
 		_playerCamera = GetComponent<Camera>();
 		_defaultFOV = _playerCamera.fieldOfView;
 		_currentFOV = _defaultFOV;
-
-
 	}
 
 	void InitializeReferences()
@@ -97,26 +79,9 @@ public class SC_CameraCollision : MonoBehaviour
 
 	void LateUpdate()
 	{
-		HandleCameraRotation();
 		HandleAimInput();
 		UpdateCameraPosition();
 		UpdateFieldOfView();
-	}
-
-	void HandleCameraRotation()
-	{
-		
-
-		float mouseX = Input.GetAxis("Mouse X") * horizontalRotationSpeed;
-		float mouseY = Input.GetAxis("Mouse Y") * verticalRotationSpeed;
-
-		// Плавное вращение по горизонтали
-		_parentTransform.Rotate(Vector3.up, mouseX);
-
-		// Плавное вращение по вертикали с ограничениями
-		_currentXRotation -= mouseY;
-		_currentXRotation = Mathf.Clamp(_currentXRotation, minVerticalAngle, maxVerticalAngle);
-	
 	}
 
 	void HandleAimInput()
@@ -124,10 +89,7 @@ public class SC_CameraCollision : MonoBehaviour
 		if (Input.GetKeyDown(aimKey))
 		{
 			_isAiming = !_isAiming;
-			if (animator != null)
-			{
-				animator.SetBool("Aim", _isAiming);
-			}
+			animator.SetBool("Aim", _isAiming);
 		}
 
 		if (Input.GetKeyDown(switchShoulderKey))
@@ -148,16 +110,27 @@ public class SC_CameraCollision : MonoBehaviour
 		Vector3 targetPos = GetTargetPosition();
 		Vector3 adjustedPos = AdjustForCollision(targetPos);
 
-		// Разные параметры сглаживания для разных состояний
-		float positionSmoothTime = _isAiming ? aimPositionSmoothTime : collisionSmoothTime;
-
-		// Плавное перемещение камеры с учетом коллизий
-		transform.localPosition = Vector3.SmoothDamp(
-			transform.localPosition,
-			adjustedPos,
-			ref _cameraVelocity,
-			positionSmoothTime
-		);
+		// Если разница небольшая, сразу устанавливаем позицию
+		if (Vector3.Distance(transform.localPosition, adjustedPos) < 0.01f)
+		{
+			transform.localPosition = adjustedPos;
+		}
+		else
+		{
+			float speed = _isAiming ? aimCameraSpeed : cameraSpeed;
+			transform.localPosition = Vector3.SmoothDamp(
+				transform.localPosition,
+				adjustedPos,
+				ref _cameraVelocity,
+				0.1f,
+				speed
+			);
+		}
+	}
+	public void ForceAim(bool enable)
+	{
+		_isAiming = enable;
+		animator.SetBool("Aim", _isAiming);
 	}
 
 	Vector3 GetTargetPosition()
@@ -166,9 +139,14 @@ public class SC_CameraCollision : MonoBehaviour
 
 		bool inCover = _tpsController != null && _tpsController.IsInCover;
 
-		return _isRightShoulder ?
-			(inCover ? coverAimOffset : defaultAimOffset) :
-			(inCover ? coverLeftOffset : defaultLeftOffset);
+		if (_isRightShoulder)
+		{
+			return inCover ? coverAimOffset : defaultAimOffset;
+		}
+		else
+		{
+			return inCover ? coverLeftOffset : defaultLeftOffset;
+		}
 	}
 
 	Vector3 AdjustForCollision(Vector3 targetPosition)
@@ -176,31 +154,26 @@ public class SC_CameraCollision : MonoBehaviour
 		if (_parentTransform == null || referenceTransform == null)
 			return targetPosition;
 
+		// Если разница с предыдущим кадром небольшая, возвращаем старое значение
+		if (Vector3.Distance(_lastAdjustedPos, targetPosition) < 0.1f)
+			return _lastAdjustedPos;
+
 		Vector3 worldTargetPos = _parentTransform.TransformPoint(targetPosition);
 		Vector3 dir = worldTargetPos - referenceTransform.position;
 
 		if (Physics.SphereCast(
 			referenceTransform.position,
 			collisionOffset,
-			dir.normalized,
+			dir,
 			out RaycastHit hit,
-			dir.magnitude,
-			collisionLayers,
-			QueryTriggerInteraction.Ignore))
+			_defaultDistance))
 		{
-			float adjustedDistance = Mathf.Max(0.1f, hit.distance - collisionOffset);
-			return _parentTransform.InverseTransformPoint(referenceTransform.position + dir.normalized * adjustedDistance);
+			float adjustedDistance = Mathf.Max(0, hit.distance - collisionOffset);
+			_lastAdjustedPos = _directionNormalized * adjustedDistance;
+			return _lastAdjustedPos;
 		}
 
+		_lastAdjustedPos = targetPosition;
 		return targetPosition;
-	}
-
-	public void ForceAim(bool enable)
-	{
-		_isAiming = enable;
-		if (animator != null)
-		{
-			animator.SetBool("Aim", _isAiming);
-		}
 	}
 }
