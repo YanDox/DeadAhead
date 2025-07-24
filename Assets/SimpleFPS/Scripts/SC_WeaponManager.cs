@@ -58,10 +58,10 @@ public class SC_WeaponManager : MonoBehaviour
 			SelectWeapon(primaryWeapon);
 		}
 
-		if (Input.GetKeyDown(KeyCode.Alpha2) && !isUltimateActive)
-		{
-			SelectWeapon(secondaryWeapon);
-		}
+		//if (Input.GetKeyDown(KeyCode.Alpha2) && !isUltimateActive)
+		//{
+		//	SelectWeapon(secondaryWeapon);
+		//}
 
 		if (Input.GetKeyDown(KeyCode.U))
 		{

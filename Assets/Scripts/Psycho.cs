@@ -1,129 +1,187 @@
 using UnityEngine;
 using UnityEngine.AI;
 using System.Collections.Generic;
+using System.Collections;
 
 public class Psycho : EnemyAI
 {
-    [Header("Psycho Specific Settings")]
-    public LayerMask zombieLayer; // ���� �����
-    private List<Zombie> zombiesInRange = new List<Zombie>();
+	[Header("Psycho Specific Settings")]
+	public LayerMask zombieLayer;
+	private List<Zombie> zombiesInRange = new List<Zombie>();
 
-    protected override void Start()
-    {
-        base.Start();
+	[Header("Animation Settings")]
+	public float rotationSpeedDuringAttack = 10f;
+	public float attackAnimationDelay = 0.3f; // Задержка перед нанесением урона в анимации
+	private bool isAttacking = false;
+	private float attackAnimationTimer = 0f;
 
-        // ��������� ��� �����
-        canAttackOtherEnemies = true;
-        enemyTags = new string[] { "Zombie" }; // ������� ����� �� ����
-    }
+	protected override void Start()
+	{
+		base.Start();
+		canAttackOtherEnemies = true;
+		enemyTags = new string[] { "Zombie" };
+	}
 
-    protected override void FindAllTargets()
-    {
-        base.FindAllTargets(); 
+	protected override void Update()
+	{
+		base.Update();
 
-        zombiesInRange.Clear();
-        int numZombies = Physics.OverlapSphereNonAlloc(
-            transform.position,
-            detectionRadius,
-            hitColliders,
-            zombieLayer
-        );
+		// Обработка таймера анимации атаки
+		if (isAttacking)
+		{
+			attackAnimationTimer -= Time.deltaTime;
+			if (attackAnimationTimer <= 0)
+			{
+				isAttacking = false;
+			}
+		}
+	}
 
-        for (int i = 0; i < numZombies; i++)
-        {
-            Zombie zombie = hitColliders[i].GetComponent<Zombie>();
-            // Решение: добавить проверку на живучесть
-            if (zombie != null && !zombie.GetComponent<EnemyHealth>().isDead)
-            {
-                zombiesInRange.Add(zombie);
-            }
-        }
-    }
+	protected override void FindAllTargets()
+	{
+		base.FindAllTargets();
+		zombiesInRange.Clear();
+		int numZombies = Physics.OverlapSphereNonAlloc(
+			transform.position,
+			detectionRadius,
+			hitColliders,
+			zombieLayer
+		);
 
-    protected override Transform GetSpecialTarget()
-    {
-        Zombie closestZombie = null;
-        float minDistance = float.MaxValue;
+		for (int i = 0; i < numZombies; i++)
+		{
+			Zombie zombie = hitColliders[i].GetComponent<Zombie>();
+			if (zombie != null && !zombie.GetComponent<EnemyHealth>().isDead)
+			{
+				zombiesInRange.Add(zombie);
+			}
+		}
+	}
 
-        foreach (var zombie in zombiesInRange)
-        {
-            if (zombie != null && !zombie.GetComponent<EnemyHealth>().isDead)
-            {
-                float distance = Vector3.Distance(transform.position, zombie.transform.position);
-                if (distance < minDistance && distance <= detectionRadius)
-                {
-                    minDistance = distance;
-                    closestZombie = zombie;
-                }
-            }
-        }
-        return closestZombie?.transform;
-    }
+	protected override Transform GetSpecialTarget()
+	{
+		Zombie closestZombie = null;
+		float minDistance = float.MaxValue;
 
-    protected override void AttackImplementation()
-    {
-        if (currentTarget != null)
-        {
-            transform.LookAt(new Vector3(
-                currentTarget.position.x,
-                transform.position.y,
-                currentTarget.position.z
-            ));
+		foreach (var zombie in zombiesInRange)
+		{
+			if (zombie != null && !zombie.GetComponent<EnemyHealth>().isDead)
+			{
+				float distance = Vector3.Distance(transform.position, zombie.transform.position);
+				if (distance < minDistance && distance <= detectionRadius)
+				{
+					minDistance = distance;
+					closestZombie = zombie;
+				}
+			}
+		}
+		return closestZombie?.transform;
+	}
 
-            if (animator != null)
-            {
-                animator.SetTrigger("Attack");
-            }
+	protected override void AttackImplementation()
+	{
+		if (currentTarget == null || isAttacking) return;
 
-            CompanionHealth companion = currentTarget.GetComponent<CompanionHealth>();
-            if (companion != null)
-            {
-                companion.TakeDamage(attackDamage);
-                return;
-            }
+		// Запуск анимации атаки
+		if (animator != null)
+		{
+			animator.SetTrigger("Attack");
+			isAttacking = true;
+			attackAnimationTimer = attackAnimationDelay;
 
-            if (currentTarget.CompareTag("Player") && playerHealth != null)
-            {
-                playerHealth.TakeDamage(attackDamage);
-                return;
-            }
+			// Запускаем корутину для нанесения урона с задержкой
+			StartCoroutine(DealDamageAfterAnimation());
+		}
+	}
 
-            // Атака зомби
-            if (currentTarget.CompareTag("Zombie"))
-            {
-                EnemyHealth zombieHealth = currentTarget.GetComponent<EnemyHealth>();
-                if (zombieHealth != null)
-                {
-                    // Сохраняем ссылку перед атакой
-                    Transform originalTarget = currentTarget;
+	private IEnumerator DealDamageAfterAnimation()
+	{
+		// Поворачиваемся к цели в начале атаки
+		Vector3 targetPosition = new Vector3(
+			currentTarget.position.x,
+			transform.position.y,
+			currentTarget.position.z
+		);
 
-                    zombieHealth.TakeDamage(attackDamage);
+		// Плавный поворот во время анимации атаки
+		float rotationTimer = 0f;
+		while (rotationTimer < attackAnimationDelay)
+		{
+			rotationTimer += Time.deltaTime;
+			Quaternion targetRotation = Quaternion.LookRotation(targetPosition - transform.position);
+			transform.rotation = Quaternion.Slerp(
+				transform.rotation,
+				targetRotation,
+				rotationSpeedDuringAttack * Time.deltaTime
+			);
+			yield return null;
+		}
 
-                    // Проверяем состояние цели ПОСЛЕ атаки
-                    if (zombieHealth.isDead && currentTarget == originalTarget)
-                    {
-                        currentTarget = null;
-                    }
-                }
-                return;
-            }
-        }
-        EnemyHealth enemy = currentTarget.GetComponent<EnemyHealth>();
-        if (enemy != null)
-        {
-            enemy.TakeDamage(attackDamage);
+		// Нанесение урона после завершения поворота
+		if (currentTarget != null)
+		{
+			CompanionHealth companion = currentTarget.GetComponent<CompanionHealth>();
+			if (companion != null)
+			{
+				companion.TakeDamage(attackDamage);
+				yield break;
+			}
 
-            if (enemy.isDead)
-            {
-                currentTarget = null;
-                currentState = EnemyState.Returning;
-            }
-            return;
-        }
-    }
+			if (currentTarget.CompareTag("Player") && playerHealth != null)
+			{
+				playerHealth.TakeDamage(attackDamage);
+				yield break;
+			}
 
-    public void ForceChasePlayer(Transform playerTarget)
-    {
-        ForceChaseTarget(playerTarget);
-    }
+			if (currentTarget.CompareTag("Zombie"))
+			{
+				EnemyHealth zombieHealth = currentTarget.GetComponent<EnemyHealth>();
+				if (zombieHealth != null)
+				{
+					Transform originalTarget = currentTarget;
+					zombieHealth.TakeDamage(attackDamage);
+
+					if (zombieHealth.isDead && currentTarget == originalTarget)
+					{
+						currentTarget = null;
+					}
+				}
+				yield break;
+			}
+
+			EnemyHealth enemy = currentTarget.GetComponent<EnemyHealth>();
+			if (enemy != null)
+			{
+				enemy.TakeDamage(attackDamage);
+				if (enemy.isDead)
+				{
+					currentTarget = null;
+					currentState = EnemyState.Returning;
+				}
+			}
+		}
+	}
+
+	protected override void UpdateAnimation()
+	{
+		if (animator != null)
+		{
+			// Базовые анимации движения
+			bool isMoving = navMeshAgent.velocity.magnitude > 0.1f;
+			animator.SetBool("IsMoving", isMoving);
+			animator.SetBool("IsChasing", currentState == EnemyState.Chasing);
+
+			// Анимация атаки (управляется через триггер в AttackImplementation)
+
+			// Анимация состояния
+			animator.SetBool("IsAttacking", currentState == EnemyState.Attacking);
+			animator.SetBool("IsPatrolling", currentState == EnemyState.Patrolling);
+			animator.SetBool("IsReturning", currentState == EnemyState.Returning);
+		}
+	}
+
+	public void ForceChasePlayer(Transform playerTarget)
+	{
+		ForceChaseTarget(playerTarget);
+	}
 }

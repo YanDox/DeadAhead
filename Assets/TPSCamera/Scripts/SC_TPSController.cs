@@ -59,6 +59,9 @@ public class SC_TPSController : MonoBehaviour
 	[HideInInspector] public bool CanPeekLeft => canPeekLeft;
 	[HideInInspector] public bool CanPeekRight => canPeekRight;
 	[HideInInspector] public bool IsInCover => isInCover;
+	[Header("Roll Settings")]
+	public float rollRotationSpeed = 20f; // Скорость поворота при перекате
+	private Quaternion targetRollRotation; // Целевое вращение после переката
 
 	void Start()
 	{
@@ -273,10 +276,14 @@ public class SC_TPSController : MonoBehaviour
 			rollDirection = transform.forward * verticalInput + transform.right * horizontalInput;
 			rollDirection.y = 0;
 			rollDirection.Normalize();
+
+			// Определяем целевое вращение для переката
+			targetRollRotation = Quaternion.LookRotation(rollDirection);
 		}
 		else
 		{
 			rollDirection = transform.forward;
+			targetRollRotation = transform.rotation;
 		}
 
 		animator.SetTrigger("Roll");
@@ -286,15 +293,25 @@ public class SC_TPSController : MonoBehaviour
 	{
 		rollTimer -= Time.deltaTime;
 
+		// Плавно поворачиваем персонажа в сторону переката
+		transform.rotation = Quaternion.Slerp(transform.rotation, targetRollRotation,
+											rollRotationSpeed * Time.deltaTime);
+
 		if (rollTimer <= 0)
 		{
 			isRolling = false;
+			// Фиксируем окончательное вращение после переката
+			transform.rotation = targetRollRotation;
+			// Обновляем rotation.y для камеры
+			rotation.y = transform.eulerAngles.y;
 			return;
 		}
 
 		float rollSpeed = Mathf.Lerp(0, rollDistance, rollTimer / rollDuration) * Time.deltaTime;
 		characterController.Move(rollDirection * rollSpeed);
 	}
+
+	
 
 	void HandleCameraRotation()
 	{
