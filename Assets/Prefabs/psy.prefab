@@ -540,7 +540,7 @@ MonoBehaviour:
   maxHealth: 100
   currentHealth: 0
   deathAnimationTime: 1.5
-  deathEffect: {fileID: 0}
+  deathEffect: {fileID: 6293866519001845367, guid: f735757fa2b417c4fb12ebba52965521, type: 3}
   Cost: 10
   damageEffectPrefab: {fileID: 3548588485384254792, guid: 2f9e7dc163581394da1e00b561eed65d, type: 3}
   effectDuration: 0.3
