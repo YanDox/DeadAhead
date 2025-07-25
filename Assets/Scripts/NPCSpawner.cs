@@ -1,208 +1,168 @@
 using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine.AI;
 
 public class NPCSpawner : MonoBehaviour
 {
-	[System.Serializable]
-	public class SpawnGroup
-	{
-		public GameObject prefab;
-		public int maxCount = 10;
-		public float spawnRadius = 5f;
-		public float minDistanceFromPlayer = 20f;
-		public float spawnInterval = 10f;
-		[HideInInspector] public List<GameObject> activeEntities = new List<GameObject>();
-	}
+	[Header("NPC Prefabs")]
+	public GameObject psychoPrefab;
+	public GameObject zombiePrefab;
+	public GameObject zombieBossPrefab;
+	public GameObject zombieCommanderPrefab;
+	public GameObject zombieFatPrefab;
+	public GameObject companionPrefab;
 
 	[Header("Spawn Settings")]
-	public SpawnGroup[] enemyGroups;
-	public SpawnGroup[] companionGroups;
-	public LayerMask terrainLayer;
-	public LayerMask obstacleLayer;
-	public float spawnCheckHeight = 50f;
-	public float spawnCheckDistance = 100f;
+	[Tooltip("Невидимые стены, ограничивающие зону спавна")]
+	public List<Collider> invisibleWalls = new List<Collider>();
+	public int maxNPCs = 20;
+	public float spawnInterval = 5f;
+	public float spawnCheckRadius = 2f;
+	public LayerMask spawnCheckLayerMask;
 
-	private Transform player;
-	private Terrain terrain;
-	private float[] nextSpawnTimes;
+	[Header("Water Settings")]
+	public GameObject waterPlane;
+	public float waterHeightOffset = 0.5f;
+
+	private List<GameObject> spawnedNPCs = new List<GameObject>();
+	private float spawnTimer;
+	private Bounds spawnArea;
+	private float waterHeight;
+	private bool spawnAreaValid = true;
 
 	void Start()
 	{
-		player = GameObject.FindGameObjectWithTag("Player").transform;
-		terrain = Terrain.activeTerrain;
-		nextSpawnTimes = new float[enemyGroups.Length + companionGroups.Length];
-
-		// Initial spawn
-		for (int i = 0; i < enemyGroups.Length; i++)
+		// Проверка необходимых компонентов
+		if (invisibleWalls.Count < 4)
 		{
-			SpawnInitialEntities(enemyGroups[i]);
-			nextSpawnTimes[i] = Time.time + enemyGroups[i].spawnInterval;
+			Debug.LogError("Необходимо назначить 4 невидимые стены!");
+			spawnAreaValid = false;
+			return;
 		}
 
-		for (int i = 0; i < companionGroups.Length; i++)
+		if (waterPlane == null)
 		{
-			int index = enemyGroups.Length + i;
-			SpawnInitialEntities(companionGroups[i]);
-			nextSpawnTimes[index] = Time.time + companionGroups[i].spawnInterval;
+			Debug.LogError("Water Plane не назначен!");
+			spawnAreaValid = false;
+			return;
+		}
+
+		CalculateSpawnArea();
+		waterHeight = waterPlane.transform.position.y + waterHeightOffset;
+		spawnTimer = spawnInterval;
+
+		// Первоначальный спавн
+		for (int i = 0; i < maxNPCs / 2; i++)
+		{
+			TrySpawnNPC();
 		}
 	}
 
 	void Update()
 	{
-		// Check enemy spawns
-		for (int i = 0; i < enemyGroups.Length; i++)
+		if (!spawnAreaValid || spawnedNPCs.Count >= maxNPCs) return;
+
+		spawnTimer -= Time.deltaTime;
+		if (spawnTimer <= 0f)
 		{
-			if (Time.time >= nextSpawnTimes[i] && enemyGroups[i].activeEntities.Count < enemyGroups[i].maxCount)
-			{
-				TrySpawnEntity(enemyGroups[i]);
-				nextSpawnTimes[i] = Time.time + enemyGroups[i].spawnInterval;
-			}
+			spawnTimer = spawnInterval;
+			TrySpawnNPC();
 		}
 
-		// Check companion spawns
-		for (int i = 0; i < companionGroups.Length; i++)
-		{
-			int index = enemyGroups.Length + i;
-			if (Time.time >= nextSpawnTimes[index] && companionGroups[i].activeEntities.Count < companionGroups[i].maxCount)
-			{
-				TrySpawnEntity(companionGroups[i]);
-				nextSpawnTimes[index] = Time.time + companionGroups[i].spawnInterval;
-			}
-		}
-
-		// Clean up null references
-		CleanUpEntityLists();
+		// Очистка списка от уничтоженных NPC
+		spawnedNPCs.RemoveAll(npc => npc == null);
 	}
 
-	private void SpawnInitialEntities(SpawnGroup group)
+	private void CalculateSpawnArea()
 	{
-		while (group.activeEntities.Count < group.maxCount)
+		Vector3 min = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
+		Vector3 max = new Vector3(float.MinValue, float.MinValue, float.MinValue);
+
+		foreach (var wall in invisibleWalls)
 		{
-			TrySpawnEntity(group);
+			if (wall == null) continue;
+
+			min = Vector3.Min(min, wall.bounds.min);
+			max = Vector3.Max(max, wall.bounds.max);
 		}
+
+		spawnArea = new Bounds((min + max) * 0.5f, max - min);
 	}
 
-	private void TrySpawnEntity(SpawnGroup group)
+	private void TrySpawnNPC()
 	{
-		Vector3 spawnPosition = FindSpawnPosition(group);
-		if (spawnPosition != Vector3.zero)
+		Vector3 spawnPosition = GetRandomSpawnPosition();
+		if (spawnPosition == Vector3.zero)
 		{
-			GameObject entity = Instantiate(group.prefab, spawnPosition, Quaternion.identity);
-			group.activeEntities.Add(entity);
-
-			// Setup death event to remove from list
-			var health = entity.GetComponent<EnemyHealth>();
-			if (health != null)
-			{
-				health.OnDeath += () => group.activeEntities.Remove(entity);
-			}
-			else
-			{
-				var companionHealth = entity.GetComponent<CompanionHealth>();
-			
-			}
+			Debug.LogWarning("Не удалось найти позицию для спавна");
+			return;
 		}
+
+		GameObject npcPrefab = GetRandomNPCPrefab();
+		if (npcPrefab == null) return;
+
+		GameObject npc = Instantiate(npcPrefab, spawnPosition, Quaternion.identity);
+		spawnedNPCs.Add(npc);
 	}
 
-	private Vector3 FindSpawnPosition(SpawnGroup group)
+	private Vector3 GetRandomSpawnPosition()
 	{
-		for (int i = 0; i < 30; i++) // Try 30 times to find a valid position
+		for (int i = 0; i < 50; i++) // Увеличили количество попыток
 		{
-			// Get random point on terrain
-			Vector3 randomPoint = GetRandomTerrainPosition();
+			Vector3 randomPoint = new Vector3(
+				Random.Range(spawnArea.min.x, spawnArea.max.x),
+				0,
+				Random.Range(spawnArea.min.z, spawnArea.max.z)
+			);
 
-			// Check distance from player
-			if (Vector3.Distance(randomPoint, player.position) < group.minDistanceFromPlayer)
-				continue;
-
-			// Check if position is valid (not inside objects)
-			if (!Physics.CheckSphere(randomPoint, group.spawnRadius, obstacleLayer))
+			// Проверка на NavMesh с увеличенным радиусом
+			if (NavMesh.SamplePosition(randomPoint, out NavMeshHit hit, 20f, NavMesh.AllAreas))
 			{
-				// Check if position is on terrain
-				if (IsPositionOnTerrain(randomPoint))
+				// Проверка высоты с запасом
+				if (hit.position.y > waterHeight + 0.1f)
 				{
-					return randomPoint;
+					// Проверка коллизий с уменьшенным радиусом
+					if (!Physics.CheckSphere(hit.position, spawnCheckRadius * 0.8f, spawnCheckLayerMask))
+					{
+						// Дополнительная проверка под точкой
+						if (!Physics.Raycast(hit.position + Vector3.up * 0.5f, Vector3.down, 1f, spawnCheckLayerMask))
+						{
+							return hit.position;
+						}
+					}
 				}
 			}
 		}
-
-		return Vector3.zero; // Failed to find position
+		return Vector3.zero;
 	}
 
-	private Vector3 GetRandomTerrainPosition()
+	private GameObject GetRandomNPCPrefab()
 	{
-		if (terrain != null)
-		{
-			Vector3 terrainSize = terrain.terrainData.size;
-			Vector3 terrainPos = terrain.transform.position;
+		float randomValue = Random.value;
 
-			float x = Random.Range(terrainPos.x, terrainPos.x + terrainSize.x);
-			float z = Random.Range(terrainPos.z, terrainPos.z + terrainSize.z);
-			float y = terrain.SampleHeight(new Vector3(x, 0, z)) + terrainPos.y;
-
-			return new Vector3(x, y, z);
-		}
-		else
-		{
-			// Fallback if no terrain - spawn in a large flat area
-			return new Vector3(
-				Random.Range(-100, 100),
-				0,
-				Random.Range(-100, 100)
-			);
-		}
-	}
-
-	private bool IsPositionOnTerrain(Vector3 position)
-	{
-		if (terrain == null) return true;
-
-		Vector3 terrainPos = terrain.transform.position;
-		Vector3 terrainSize = terrain.terrainData.size;
-
-		return position.x >= terrainPos.x &&
-			   position.x <= terrainPos.x + terrainSize.x &&
-			   position.z >= terrainPos.z &&
-			   position.z <= terrainPos.z + terrainSize.z;
-	}
-
-	private void CleanUpEntityLists()
-	{
-		foreach (var group in enemyGroups)
-		{
-			group.activeEntities.RemoveAll(item => item == null);
-		}
-
-		foreach (var group in companionGroups)
-		{
-			group.activeEntities.RemoveAll(item => item == null);
-		}
+		if (randomValue < 0.4f) return zombiePrefab;
+		if (randomValue < 0.7f) return psychoPrefab;
+		if (randomValue < 0.85f) return zombieFatPrefab;
+		if (randomValue < 0.95f) return zombieCommanderPrefab;
+		return zombieBossPrefab;
 	}
 
 	private void OnDrawGizmosSelected()
 	{
-		Gizmos.color = Color.red;
-		foreach (var group in enemyGroups)
+		if (invisibleWalls.Count >= 4)
 		{
-			foreach (var entity in group.activeEntities)
-			{
-				if (entity != null)
-				{
-					Gizmos.DrawWireSphere(entity.transform.position, 1f);
-				}
-			}
+			CalculateSpawnArea();
+			Gizmos.color = new Color(0, 1, 0, 0.3f);
+			Gizmos.DrawCube(spawnArea.center, spawnArea.size);
 		}
 
-		Gizmos.color = Color.blue;
-		foreach (var group in companionGroups)
+		if (waterPlane != null)
 		{
-			foreach (var entity in group.activeEntities)
-			{
-				if (entity != null)
-				{
-					Gizmos.DrawWireSphere(entity.transform.position, 1f);
-				}
-			}
+			Gizmos.color = new Color(0, 0, 1, 0.3f);
+			Gizmos.DrawCube(
+				new Vector3(spawnArea.center.x, waterPlane.transform.position.y, spawnArea.center.z),
+				new Vector3(spawnArea.size.x, 0.1f, spawnArea.size.z)
+			);
 		}
 	}
 }

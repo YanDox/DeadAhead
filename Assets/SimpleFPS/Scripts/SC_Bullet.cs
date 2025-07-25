@@ -32,20 +32,32 @@ public class SC_Bullet : MonoBehaviour
 
 	void HandleHit(RaycastHit hit)
 	{
+		// Применяем физическое воздействие
 		if (hit.rigidbody != null)
 		{
 			hit.rigidbody.AddForce(transform.forward * hitForce);
 		}
 
-		IEntity entity = hit.transform.GetComponent<IEntity>();
-		if (entity != null)
-		{
-			entity.ApplyDamage(damagePoints);
-		}
-
+		// Создаем эффект попадания
 		if (impactEffect != null)
 		{
 			Instantiate(impactEffect, hit.point, Quaternion.LookRotation(hit.normal));
+		}
+
+		// Обрабатываем попадание в сущность
+		IEntity entity = hit.transform.GetComponent<IEntity>();
+		if (entity != null)
+		{
+			// Для EnemyHealth используем специальную обработку
+			EnemyHealth enemyHealth = hit.transform.GetComponent<EnemyHealth>();
+			if (enemyHealth != null)
+			{
+				enemyHealth.TakeDamage(Mathf.RoundToInt(damagePoints), hit.point);
+			}
+			else // Для других объектов, реализующих IEntity
+			{
+				entity.ApplyDamage(damagePoints);
+			}
 		}
 	}
 

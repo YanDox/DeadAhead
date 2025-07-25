@@ -15,27 +15,28 @@ public class EnemyHealth : MonoBehaviour, IEntity
 	[Header("Damage Feedback")]
 	public GameObject damageEffectPrefab; // Префаб эффекта получения урона
 	public float effectDuration = 0.3f; // Длительность эффекта
-    public bool isDead { get; private set; }
+	public bool isDead { get; private set; }
 
-    private Inventory playerInv;
+	private Inventory playerInv;
 
 	void Start()
 	{
 		currentHealth = maxHealth;
 		playerInv = FindObjectOfType<Inventory>();
-        isDead = false;
-    }
+		isDead = false;
+	}
 
 	public void ApplyDamage(float damage)
 	{
-		TakeDamage(Mathf.RoundToInt(damage));
+		TakeDamage(Mathf.RoundToInt(damage), transform.position); // По умолчанию в центр объекта
 	}
 
-	public void TakeDamage(int damage)
+	// Новая версия метода для попаданий с указанием точки
+	public void TakeDamage(int damage, Vector3 hitPoint)
 	{
-        if (isDead) return;
+		if (isDead) return;
 
-        currentHealth -= damage;
+		currentHealth -= damage;
 
 		if (currentHealth <= 0)
 		{
@@ -43,38 +44,49 @@ public class EnemyHealth : MonoBehaviour, IEntity
 		}
 		else
 		{
-			ShowDamageEffect();
+			ShowDamageEffect(hitPoint);
 		}
 	}
 
-	void ShowDamageEffect()
+	// Старая версия для совместимости
+	public void TakeDamage(int damage)
+	{
+		TakeDamage(damage, transform.position);
+	}
+
+	void ShowDamageEffect(Vector3 hitPoint)
 	{
 		if (damageEffectPrefab != null)
 		{
-			// Создаем эффект и уничтожаем его через заданное время
-			GameObject effect = Instantiate(damageEffectPrefab, transform.position, Quaternion.identity, transform);
+			// Создаем эффект в точке попадания
+			GameObject effect = Instantiate(
+				damageEffectPrefab,
+				hitPoint,
+				Quaternion.LookRotation(transform.position - hitPoint), // Разворачиваем эффект "от" врага
+				transform
+			);
 			Destroy(effect, effectDuration);
 		}
 	}
 
 	void Die()
 	{
-        isDead = true;
+		isDead = true;
 
-        var enemyAI = GetComponent<EnemyAI>();
+		var enemyAI = GetComponent<EnemyAI>();
 		if (enemyAI != null) enemyAI.enabled = false;
 
-        foreach (var col in GetComponentsInChildren<Collider>())
-            col.enabled = false;
+		foreach (var col in GetComponentsInChildren<Collider>())
+			col.enabled = false;
 
-        Rigidbody rb = GetComponent<Rigidbody>();
-        if (rb != null)
-        {
-            rb.isKinematic = true;
-            rb.detectCollisions = false;
-        }
+		Rigidbody rb = GetComponent<Rigidbody>();
+		if (rb != null)
+		{
+			rb.isKinematic = true;
+			rb.detectCollisions = false;
+		}
 
-        if (deathEffect != null)
+		if (deathEffect != null)
 		{
 			Instantiate(deathEffect, transform.position, Quaternion.identity);
 		}
@@ -84,9 +96,7 @@ public class EnemyHealth : MonoBehaviour, IEntity
 			playerInv.AddUltimatePoints(Cost);
 		}
 
-		// Вызываем событие смерти перед уничтожением
 		OnDeath?.Invoke();
-
 		Destroy(gameObject, 0);
 	}
 }
