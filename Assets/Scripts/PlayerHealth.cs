@@ -26,26 +26,7 @@ public class PlayerHealth : MonoBehaviour
         playerController = GetComponent<SC_TPSController>();
 	}
 
-    void Update()
-    {
-        if (Input.GetKeyDown(KeyCode.F))
-        {
-            UseMedkit();
-        }
-    }
-
-    private void UseMedkit()
-    {
-        if (inventory.items[Inventory.MEDKIT] > 0 && CanHeal())
-        {
-            if (inventory.UseItem(Inventory.MEDKIT))
-            {
-                Heal(medkitHealAmount);
-                Debug.Log("Used medkit! Current medkits: " + inventory.items[Inventory.MEDKIT]);
-            }
-        }
-    }
-
+ 
     public bool CanHeal() => currentHealth < maxHealth;
 
     public void Heal(int amount)

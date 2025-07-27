@@ -6,7 +6,6 @@ public class Inventory : MonoBehaviour
 	public const int RIFLE_AMMO = 0;
 	public const int AXE = 1;
 	public const int BUS_PART = 2;
-	public const int MEDKIT = 3;
 	public const int COLA_CRATE = 4;
 
 	[Header("Ultimate Settings")]
@@ -22,7 +21,6 @@ public class Inventory : MonoBehaviour
 		items[RIFLE_AMMO] = 30;
 		items[AXE] = 0;
 		items[BUS_PART] = 0;
-		items[MEDKIT] = 1;
 		items[COLA_CRATE] = 0;
 	}
 
@@ -76,9 +74,7 @@ public class Inventory : MonoBehaviour
 				}
 				break;
 
-			case MEDKIT:
-				items[MEDKIT] += amount;
-				return true;
+	
 		
 				case COLA_CRATE:
 			if (items[COLA_CRATE] == 0)

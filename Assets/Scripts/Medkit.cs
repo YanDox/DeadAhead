@@ -1,22 +1,36 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class Health : MonoBehaviour
 {
-    [Header("Settings")]
-    [SerializeField] private int healAmount = 30;
+	[Header("Settings")]
+	[SerializeField] private int healAmount = 30;
+	private Transform spawnPoint;
 
-    private void OnTriggerEnter(Collider other)
-    {
-        if (other.CompareTag("Player"))
-        {
-            Inventory Inventory = other.GetComponent<Inventory>();
-            if (Inventory != null && Inventory.AddItem(Inventory.MEDKIT))
-            {
-                Destroy(gameObject);
-                Debug.Log("Деталь автобуса подобрана!");
-            }
-        }
-    }
+	public void SetSpawnPoint(Transform point)
+	{
+		if (point != null) // Проверка на null
+		{
+			spawnPoint = point;
+		}
+	}
+
+	public void SetHealAmount(int amount) => healAmount = amount;
+
+	private void OnTriggerEnter(Collider other)
+	{
+		if (other.CompareTag("Player"))
+		{
+			PlayerHealth playerHealth = other.GetComponent<PlayerHealth>();
+			if (playerHealth != null && playerHealth.CanHeal())
+			{
+				playerHealth.Heal(healAmount);
+				if (spawnPoint != null) // Проверка перед вызовом
+				{
+					MedkitSpawner.Instance?.HandleMedkitPickedUp(spawnPoint);
+				}
+				Destroy(gameObject);
+			}
+		}
+	}
+
 }
