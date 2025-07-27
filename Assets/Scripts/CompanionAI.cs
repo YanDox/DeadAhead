@@ -435,8 +435,8 @@ public class CompanionAI : MonoBehaviour
 
 			yield return new WaitForSeconds(attackDuration);
 
-			if (currentTarget == null || !currentTarget.gameObject.activeInHierarchy ||
-				Vector3.Distance(transform.position, currentTarget.position) > attackDistance)
+			if (currentTarget == null || !currentTarget.gameObject.activeInHierarchy || currentTarget.CompareTag("Dead") ||
+                Vector3.Distance(transform.position, currentTarget.position) > attackDistance)
 			{
 				EndReaction();
 			}
@@ -449,7 +449,7 @@ public class CompanionAI : MonoBehaviour
 
 	#endregion
 
-	#region Getaway
+#region Getaway
 	private IEnumerator EscapeFromThreat(Transform threatTarget)
     {
         if (threatTarget == null)
@@ -583,12 +583,6 @@ public class CompanionAI : MonoBehaviour
     {
         if (Time.time - lastReactionTime < reactionCooldown || isReactingToZombie)
             return;
-
-        if (health.isDead)
-        {
-            agent.isStopped = true;
-            return;
-        }
 
         Transform nearestPsycho = FindNearestPsychoInRadius(psychoDetectionRadius);
         if (nearestPsycho != null && nearestPsycho.gameObject.activeInHierarchy)
@@ -897,7 +891,7 @@ public class CompanionAI : MonoBehaviour
 	}
 	#endregion
 
-	#region Retreating
+#region Retreating
 	private void RetreatFromBus()
     {
         Debug.Log("Отход от автобуса после ремонта");

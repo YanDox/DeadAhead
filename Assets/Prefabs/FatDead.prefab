@@ -1,19 +1,5 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!136 &6666448673719123785
-CapsuleCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 523622225806236796}
-  m_Material: {fileID: 0}
-  m_IsTrigger: 0
-  m_Enabled: 1
-  m_Radius: 0.41758886
-  m_Height: 0.90518624
-  m_Direction: 1
-  m_Center: {x: -0.061956324, y: 0.2889933, z: -0.000000007160262}
 --- !u!54 &3386928325636524164
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -30,6 +16,20 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!136 &6666448673719123785
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 523622225806236796}
+  m_Material: {fileID: 0}
+  m_IsTrigger: 0
+  m_Enabled: 1
+  m_Radius: 0.41758886
+  m_Height: 0.90518624
+  m_Direction: 1
+  m_Center: {x: -0.061956324, y: 0.2889933, z: -0.000000007160262}
 --- !u!153 &3237177382306973568
 ConfigurableJoint:
   m_ObjectHideFlags: 0
@@ -126,19 +126,6 @@ ConfigurableJoint:
   m_EnablePreprocessing: 1
   m_MassScale: 1
   m_ConnectedMassScale: 1
---- !u!65 &2796553103305614777
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1448642989266672512}
-  m_Material: {fileID: 0}
-  m_IsTrigger: 0
-  m_Enabled: 1
-  serializedVersion: 2
-  m_Size: {x: 2.4140007, y: 0.2424443, z: 1.6810983}
-  m_Center: {x: 0.04636478, y: 0.05385051, z: -0.005735337}
 --- !u!54 &1175723752867815022
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -155,6 +142,19 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!65 &2796553103305614777
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1448642989266672512}
+  m_Material: {fileID: 0}
+  m_IsTrigger: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Size: {x: 2.4140007, y: 0.2424443, z: 1.6810983}
+  m_Center: {x: 0.04636478, y: 0.05385051, z: -0.005735337}
 --- !u!171741748 &9013782568603153819
 ArticulationBody:
   m_ObjectHideFlags: 0
@@ -206,20 +206,6 @@ ArticulationBody:
   m_Immovable: 0
   m_UseGravity: 1
   m_CollisionDetectionMode: 0
---- !u!136 &6849439050354763941
-CapsuleCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5476357721958345062}
-  m_Material: {fileID: 0}
-  m_IsTrigger: 0
-  m_Enabled: 1
-  m_Radius: 0.36636373
-  m_Height: 0.92966014
-  m_Direction: 1
-  m_Center: {x: -0.13363895, y: 0.2321026, z: -0.0000000022064959}
 --- !u!54 &6896505092289237900
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -236,6 +222,20 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!136 &6849439050354763941
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5476357721958345062}
+  m_Material: {fileID: 0}
+  m_IsTrigger: 0
+  m_Enabled: 1
+  m_Radius: 0.36636373
+  m_Height: 0.92966014
+  m_Direction: 1
+  m_Center: {x: -0.13363895, y: 0.2321026, z: -0.0000000022064959}
 --- !u!153 &6821325080792969290
 ConfigurableJoint:
   m_ObjectHideFlags: 0
@@ -344,7 +344,7 @@ GameObject:
   - component: {fileID: 5049699967511009758}
   m_Layer: 0
   m_Name: FatDead
-  m_TagString: Untagged
+  m_TagString: Dead
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0

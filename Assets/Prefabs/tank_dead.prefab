@@ -723,7 +723,7 @@ GameObject:
   - component: {fileID: 1277964523952455357}
   m_Layer: 0
   m_Name: tank_dead
-  m_TagString: Untagged
+  m_TagString: Dead
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
