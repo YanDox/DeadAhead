@@ -171,6 +171,7 @@ MonoBehaviour:
   primaryWeapon: {fileID: 286121686043795303}
   secondaryWeapon: {fileID: 286121686561983918}
   isUltimateActive: 0
+  cameraCollision: {fileID: 0}
   selectedWeapon: {fileID: 0}
 --- !u!1 &286121686043795301
 GameObject:
@@ -318,11 +319,14 @@ MonoBehaviour:
   fireRate: 0.1
   bulletPrefab: {fileID: 4696296699401721060, guid: 765b1f13d28a63c4a806f0ebf4bbcd80, type: 3}
   firePoint: {fileID: 286121686636045964}
-  bulletsPerMagazine: 30
+  magazineSize: 30
+  currentBulletsInMagazine: 0
   timeToReload: 1.5
   weaponDamage: 15
   fireAudio: {fileID: 8300000, guid: a297cc2fb45fcc54baa4e9a6956f18e8, type: 3}
   reloadAudio: {fileID: 8300000, guid: 6972787f344fd1d4b85f8a7e7a646bf2, type: 3}
+  ammoType: 0
+  infiniteAmmo: 0
   manager: {fileID: 0}
 --- !u!1 &286121686561983916
 GameObject:
@@ -470,11 +474,14 @@ MonoBehaviour:
   fireRate: 0.1
   bulletPrefab: {fileID: 4696296699401721060, guid: 765b1f13d28a63c4a806f0ebf4bbcd80, type: 3}
   firePoint: {fileID: 8574755789498978251}
-  bulletsPerMagazine: 30
+  magazineSize: 30
+  currentBulletsInMagazine: 0
   timeToReload: 1.5
   weaponDamage: 1000
   fireAudio: {fileID: 8300000, guid: a297cc2fb45fcc54baa4e9a6956f18e8, type: 3}
   reloadAudio: {fileID: 8300000, guid: 6972787f344fd1d4b85f8a7e7a646bf2, type: 3}
+  ammoType: 0
+  infiniteAmmo: 0
   manager: {fileID: 0}
 --- !u!1 &286121686636045939
 GameObject:
@@ -675,6 +682,7 @@ MonoBehaviour:
   deathEffect: {fileID: 0}
   damageSound: {fileID: 0}
   deathSound: {fileID: 0}
+  medkitHealAmount: 30
 --- !u!143 &2262971749164449603
 CharacterController:
   m_ObjectHideFlags: 0
@@ -735,6 +743,7 @@ MonoBehaviour:
   animator: {fileID: 0}
   animationSmoothTime: 0.05
   canMove: 1
+  rollRotationSpeed: 20
 --- !u!95 &286121685375999847
 Animator:
   serializedVersion: 3
@@ -1847,7 +1856,7 @@ Transform:
   m_GameObject: {fileID: 2644609648145610322}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: -0.953, z: 0}
-  m_LocalScale: {x: 0.3866522, y: 0.38665217, z: 0.3866522}
+  m_LocalScale: {x: 0.6, y: 0.6, z: 0.6}
   m_Children:
   - {fileID: 7180998499481422972}
   - {fileID: 8456741562643042035}
