@@ -15,7 +15,7 @@ GameObject:
   - component: {fileID: 5487395272621810045}
   m_Layer: 0
   m_Name: Bill
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -54,6 +54,7 @@ MonoBehaviour:
   deathEffect: {fileID: 0}
   damageSound: {fileID: 0}
   deathSound: {fileID: 0}
+  medkitHealAmount: 30
 --- !u!143 &2062423198752176331
 CharacterController:
   m_ObjectHideFlags: 0
@@ -92,6 +93,9 @@ MonoBehaviour:
   gravity: 20
   crouchHeight: 1
   standHeight: 2
+  rollDistance: 3
+  rollDuration: 0.5
+  jumpCooldown: 0.3
   coverCheckDistance: 0.8
   lowCoverHeight: 1.2
   coverSnapSpeed: 5
@@ -102,7 +106,16 @@ MonoBehaviour:
   playerCameraParent: {fileID: 6840401033367611678}
   lookSpeed: 2
   lookXLimit: 60
+  mouseDeadZone: 0.1
+  groundCheckDistance: 0.2
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 0
+  groundCheckOffset: 0.1
+  animator: {fileID: 0}
+  animationSmoothTime: 0.1
   canMove: 1
+  rollRotationSpeed: 20
 --- !u!95 &5487395272621810045
 Animator:
   serializedVersion: 3
@@ -221,6 +234,7 @@ MonoBehaviour:
   aimTransitionSpeed: 10
   aimKey: 324
   switchShoulderKey: 113
+  animator: {fileID: 0}
   _isAiming: 0
   _isRightShoulder: 1
 --- !u!1001 &2730456813168627606
