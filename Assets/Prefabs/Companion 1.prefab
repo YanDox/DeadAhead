@@ -140,8 +140,8 @@ MonoBehaviour:
   followDistance: 10
   stopDistance: 20
   minFollowDistance: 3
-  movementSpeed: 5
-  rotationSpeed: 4
+  movementSpeed: 6
+  rotationSpeed: 5
   stayPointRadius: 10
   detectionRadius: 20
   targetStayPoint: {fileID: 0}
@@ -161,7 +161,7 @@ MonoBehaviour:
   attackDistance: 2
   attackRate: 1
   attackDuration: 2
-  chaseSpeed: 7
+  chaseSpeed: 8
   attackDamage: 1000
   transferPartKey: 114
   transferDistance: 3
@@ -177,6 +177,8 @@ MonoBehaviour:
   runAnimationParam: IsRunning
   attackAnimationTrigger: Attack
   idleAnimationParam: IsIdle
+  repairAnimationTrigger: Repair
+  repairInProgressParam: IsRepairing
 --- !u!114 &8036740137638850914
 MonoBehaviour:
   m_ObjectHideFlags: 0
