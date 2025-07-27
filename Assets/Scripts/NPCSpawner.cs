@@ -1,76 +1,89 @@
 using UnityEngine;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine.AI;
 
 public class NPCSpawner : MonoBehaviour
 {
-	[Header("NPC Prefabs")]
-	public GameObject psychoPrefab;
-	public GameObject zombiePrefab;
-	public GameObject zombieBossPrefab;
-	public GameObject zombieCommanderPrefab;
-	public GameObject zombieFatPrefab;
-	public GameObject companionPrefab;
+	[Header("Зомби")]
+	public GameObject[] commonZombieGroups;  // Обычные зомби (70%)
+	public GameObject[] specialZombieGroups; // Особые зомби (20%)
 
-	[Header("Spawn Settings")]
-	[Tooltip("Невидимые стены, ограничивающие зону спавна")]
+	[Header("Особые враги")]
+	public GameObject[] psychoGroups;       // Психи (10%)
+	public GameObject[] bossGroups;        // Боссы (спавнятся отдельно)
+
+	[Header("Компаньоны")]
+	public GameObject[] companionPrefabs;   // Префабы компаньонов
+	public float companionSpawnChance = 0.2f;
+	public int maxCompanions = 3;
+
+	[Header("Настройки спавна")]
 	public List<Collider> invisibleWalls = new List<Collider>();
-	public int maxNPCs = 20;
-	public float spawnInterval = 5f;
-	public float spawnCheckRadius = 2f;
+	public int maxGroups = 15;
+	public float spawnInterval = 15f;
+	public float spawnCheckRadius = 5f;
 	public LayerMask spawnCheckLayerMask;
+	public float activationDistance = 30f;
 
-	[Header("Water Settings")]
+	[Header("Вода")]
 	public GameObject waterPlane;
 	public float waterHeightOffset = 0.5f;
 
-	private List<GameObject> spawnedNPCs = new List<GameObject>();
+	// Приватные переменные
+	private List<GameObject> spawnedGroups = new List<GameObject>();
+	private List<GameObject> spawnedCompanions = new List<GameObject>();
 	private float spawnTimer;
 	private Bounds spawnArea;
 	private float waterHeight;
+	private Transform player;
 	private bool spawnAreaValid = true;
 
 	void Start()
 	{
-		// Проверка необходимых компонентов
+		FindPlayer();
+		InitializeSpawnArea();
+		InitialSpawn();
+	}
+
+	void Update()
+	{
+		if (!spawnAreaValid) return;
+
+		HandleGroupSpawning();
+		HandleCompanionSpawning();
+		UpdateGroupsActivity();
+	}
+
+	#region Инициализация
+	private void FindPlayer()
+	{
+		player = GameObject.FindGameObjectWithTag("Player")?.transform;
+		if (player == null)
+		{
+			Debug.LogError("Player not found! Add 'Player' tag to player object.");
+			spawnAreaValid = false;
+		}
+	}
+
+	private void InitializeSpawnArea()
+	{
 		if (invisibleWalls.Count < 4)
 		{
-			Debug.LogError("Необходимо назначить 4 невидимые стены!");
+			Debug.LogError("Need 4 invisible walls!");
 			spawnAreaValid = false;
 			return;
 		}
 
 		if (waterPlane == null)
 		{
-			Debug.LogError("Water Plane не назначен!");
+			Debug.LogError("Water Plane not assigned!");
 			spawnAreaValid = false;
 			return;
 		}
 
 		CalculateSpawnArea();
 		waterHeight = waterPlane.transform.position.y + waterHeightOffset;
-		spawnTimer = spawnInterval;
-
-		// Первоначальный спавн
-		for (int i = 0; i < maxNPCs / 2; i++)
-		{
-			TrySpawnNPC();
-		}
-	}
-
-	void Update()
-	{
-		if (!spawnAreaValid || spawnedNPCs.Count >= maxNPCs) return;
-
-		spawnTimer -= Time.deltaTime;
-		if (spawnTimer <= 0f)
-		{
-			spawnTimer = spawnInterval;
-			TrySpawnNPC();
-		}
-
-		// Очистка списка от уничтоженных NPC
-		spawnedNPCs.RemoveAll(npc => npc == null);
 	}
 
 	private void CalculateSpawnArea()
@@ -81,7 +94,6 @@ public class NPCSpawner : MonoBehaviour
 		foreach (var wall in invisibleWalls)
 		{
 			if (wall == null) continue;
-
 			min = Vector3.Min(min, wall.bounds.min);
 			max = Vector3.Max(max, wall.bounds.max);
 		}
@@ -89,25 +101,88 @@ public class NPCSpawner : MonoBehaviour
 		spawnArea = new Bounds((min + max) * 0.5f, max - min);
 	}
 
-	private void TrySpawnNPC()
+	private void InitialSpawn()
 	{
-		Vector3 spawnPosition = GetRandomSpawnPosition();
-		if (spawnPosition == Vector3.zero)
+		spawnTimer = 0f;
+		for (int i = 0; i < Mathf.Min(maxGroups / 2, 5); i++)
 		{
-			Debug.LogWarning("Не удалось найти позицию для спавна");
-			return;
+			TrySpawnGroup();
 		}
+	}
+	#endregion
 
-		GameObject npcPrefab = GetRandomNPCPrefab();
-		if (npcPrefab == null) return;
+	#region Спавн
+	private void HandleGroupSpawning()
+	{
+		if (spawnedGroups.Count >= maxGroups) return;
 
-		GameObject npc = Instantiate(npcPrefab, spawnPosition, Quaternion.identity);
-		spawnedNPCs.Add(npc);
+		spawnTimer -= Time.deltaTime;
+		if (spawnTimer <= 0f)
+		{
+			spawnTimer = spawnInterval;
+			TrySpawnGroup();
+		}
 	}
 
-	private Vector3 GetRandomSpawnPosition()
+	private void HandleCompanionSpawning()
 	{
-		for (int i = 0; i < 50; i++) // Увеличили количество попыток
+		if (spawnedCompanions.Count >= maxCompanions) return;
+
+		if (Random.value < companionSpawnChance)
+		{
+			TrySpawnCompanion();
+		}
+	}
+
+	private void TrySpawnGroup()
+	{
+		Vector3 spawnPosition = FindValidSpawnPosition();
+		if (spawnPosition == Vector3.zero) return;
+
+		GameObject groupPrefab = SelectRandomGroupPrefab();
+		if (groupPrefab == null) return;
+
+		GameObject group = Instantiate(groupPrefab, spawnPosition, Quaternion.identity);
+		spawnedGroups.Add(group);
+		InitializeGroup(group);
+		SetGroupActive(group, ShouldBeActive(spawnPosition));
+	}
+
+	private void TrySpawnCompanion()
+	{
+		Vector3 spawnPosition = FindValidSpawnPosition();
+		if (spawnPosition == Vector3.zero) return;
+
+		GameObject companionPrefab = companionPrefabs[Random.Range(0, companionPrefabs.Length)];
+		GameObject companion = Instantiate(companionPrefab, spawnPosition, Quaternion.identity);
+		spawnedCompanions.Add(companion);
+
+		CompanionAI companionAI = companion.GetComponent<CompanionAI>();
+		if (companionAI != null)
+		{
+			companionAI.Initialize(player);
+		}
+	}
+
+	private GameObject SelectRandomGroupPrefab()
+	{
+		float randomValue = Random.value;
+
+		if (randomValue < 0.7f && commonZombieGroups.Length > 0)
+			return commonZombieGroups[Random.Range(0, commonZombieGroups.Length)];
+
+		if (randomValue < 0.9f && specialZombieGroups.Length > 0)
+			return specialZombieGroups[Random.Range(0, specialZombieGroups.Length)];
+
+		if (psychoGroups.Length > 0)
+			return psychoGroups[Random.Range(0, psychoGroups.Length)];
+
+		return null;
+	}
+
+	private Vector3 FindValidSpawnPosition()
+	{
+		for (int i = 0; i < 50; i++)
 		{
 			Vector3 randomPoint = new Vector3(
 				Random.Range(spawnArea.min.x, spawnArea.max.x),
@@ -115,54 +190,194 @@ public class NPCSpawner : MonoBehaviour
 				Random.Range(spawnArea.min.z, spawnArea.max.z)
 			);
 
-			// Проверка на NavMesh с увеличенным радиусом
-			if (NavMesh.SamplePosition(randomPoint, out NavMeshHit hit, 20f, NavMesh.AllAreas))
+			if (IsValidSpawnPoint(randomPoint, out Vector3 validPoint))
 			{
-				// Проверка высоты с запасом
-				if (hit.position.y > waterHeight + 0.1f)
-				{
-					// Проверка коллизий с уменьшенным радиусом
-					if (!Physics.CheckSphere(hit.position, spawnCheckRadius * 0.8f, spawnCheckLayerMask))
-					{
-						// Дополнительная проверка под точкой
-						if (!Physics.Raycast(hit.position + Vector3.up * 0.5f, Vector3.down, 1f, spawnCheckLayerMask))
-						{
-							return hit.position;
-						}
-					}
-				}
+				return validPoint;
 			}
 		}
 		return Vector3.zero;
 	}
 
-	private GameObject GetRandomNPCPrefab()
+	private bool IsValidSpawnPoint(Vector3 point, out Vector3 validPoint)
 	{
-		float randomValue = Random.value;
+		validPoint = Vector3.zero;
 
-		if (randomValue < 0.4f) return zombiePrefab;
-		if (randomValue < 0.7f) return psychoPrefab;
-		if (randomValue < 0.85f) return zombieFatPrefab;
-		if (randomValue < 0.95f) return zombieCommanderPrefab;
-		return zombieBossPrefab;
+		if (!NavMesh.SamplePosition(point, out NavMeshHit hit, 20f, NavMesh.AllAreas))
+			return false;
+
+		if (hit.position.y <= waterHeight + 0.1f)
+			return false;
+
+		if (Physics.CheckSphere(hit.position, spawnCheckRadius, spawnCheckLayerMask))
+			return false;
+
+		validPoint = hit.position;
+		return true;
+	}
+	#endregion
+
+	#region Управление активностью
+	private void UpdateGroupsActivity()
+	{
+		UpdateSpawnedObjectsActivity(spawnedGroups);
+		UpdateSpawnedObjectsActivity(spawnedCompanions, true);
+
+		// Дополнительная очистка мертвых объектов
+		CleanupDeadObjects(spawnedGroups);
+		CleanupDeadObjects(spawnedCompanions);
 	}
 
+	private void CleanupDeadObjects(List<GameObject> objects)
+	{
+		for (int i = objects.Count - 1; i >= 0; i--)
+		{
+			if (objects[i] == null ||
+				(objects[i].CompareTag("Dead") &&
+				 Vector3.Distance(objects[i].transform.position, player.position) > activationDistance))
+			{
+				if (objects[i] != null)
+				{
+					Destroy(objects[i]);
+				}
+				objects.RemoveAt(i);
+			}
+		}
+	}
+
+	private void UpdateSpawnedObjectsActivity(List<GameObject> objects, bool alwaysActive = false)
+	{
+		for (int i = objects.Count - 1; i >= 0; i--)
+		{
+			if (objects[i] == null)
+			{
+				objects.RemoveAt(i);
+				continue;
+			}
+
+			// Удаляем объекты с тегом "Dead" вне радиуса активации
+			if (objects[i].CompareTag("Dead") &&
+				Vector3.Distance(objects[i].transform.position, player.position) > activationDistance)
+			{
+				Destroy(objects[i]);
+				objects.RemoveAt(i);
+				continue;
+			}
+
+			bool shouldBeActive = alwaysActive || ShouldBeActive(objects[i].transform.position);
+			if (objects[i].activeSelf != shouldBeActive)
+			{
+				SetGroupActive(objects[i], shouldBeActive);
+			}
+		}
+	}
+
+	private bool ShouldBeActive(Vector3 position)
+	{
+		return Vector3.Distance(position, player.position) <= activationDistance;
+	}
+
+	private void InitializeGroup(GameObject group)
+	{
+		foreach (Transform npc in group.transform)
+		{
+			if (npc == null) continue;
+
+			InitializeNPC(npc.gameObject);
+		}
+	}
+
+	private void InitializeNPC(GameObject npc)
+	{
+		npc.SetActive(false);
+
+		var agent = npc.GetComponent<NavMeshAgent>();
+		if (agent != null)
+		{
+			agent.enabled = false;
+			agent.Warp(npc.transform.position);
+		}
+
+		var anim = npc.GetComponent<Animator>();
+		if (anim != null) anim.enabled = false;
+
+		var collider = npc.GetComponent<Collider>();
+		if (collider != null) collider.enabled = false;
+	}
+
+	private void SetGroupActive(GameObject group, bool active)
+	{
+		if (group == null) return;
+
+		group.SetActive(active);
+
+		foreach (Transform npc in group.transform)
+		{
+			if (npc == null) continue;
+
+			SetNPCActive(npc.gameObject, active);
+		}
+	}
+
+	private void SetNPCActive(GameObject npc, bool active)
+	{
+		npc.SetActive(active);
+
+		var agent = npc.GetComponent<NavMeshAgent>();
+		if (agent != null)
+		{
+			agent.enabled = active;
+			if (active)
+			{
+				agent.Warp(npc.transform.position);
+				agent.isStopped = false;
+			}
+		}
+
+		var anim = npc.GetComponent<Animator>();
+		if (anim != null) anim.enabled = active;
+
+		var collider = npc.GetComponent<Collider>();
+		if (collider != null) collider.enabled = active;
+
+		var ai = npc.GetComponent<EnemyAI>();
+		if (ai != null) ai.enabled = active;
+	}
+	#endregion
+
+	#region Визуализация
 	private void OnDrawGizmosSelected()
 	{
-		if (invisibleWalls.Count >= 4)
-		{
-			CalculateSpawnArea();
-			Gizmos.color = new Color(0, 1, 0, 0.3f);
-			Gizmos.DrawCube(spawnArea.center, spawnArea.size);
-		}
-
-		if (waterPlane != null)
-		{
-			Gizmos.color = new Color(0, 0, 1, 0.3f);
-			Gizmos.DrawCube(
-				new Vector3(spawnArea.center.x, waterPlane.transform.position.y, spawnArea.center.z),
-				new Vector3(spawnArea.size.x, 0.1f, spawnArea.size.z)
-			);
-		}
+		DrawSpawnArea();
+		DrawWaterLevel();
+		DrawActivationZone();
 	}
+
+	private void DrawSpawnArea()
+	{
+		if (invisibleWalls.Count < 4) return;
+
+		CalculateSpawnArea();
+		Gizmos.color = new Color(0, 1, 0, 0.3f);
+		Gizmos.DrawCube(spawnArea.center, spawnArea.size);
+	}
+
+	private void DrawWaterLevel()
+	{
+		if (waterPlane == null) return;
+
+		Gizmos.color = new Color(0, 0, 1, 0.3f);
+		Gizmos.DrawCube(
+			new Vector3(spawnArea.center.x, waterPlane.transform.position.y, spawnArea.center.z),
+			new Vector3(spawnArea.size.x, 0.1f, spawnArea.size.z)
+		);
+	}
+
+	private void DrawActivationZone()
+	{
+		if (player == null) return;
+
+		Gizmos.color = new Color(1, 0, 0, 0.2f);
+		Gizmos.DrawSphere(player.position, activationDistance);
+	}
+	#endregion
 }

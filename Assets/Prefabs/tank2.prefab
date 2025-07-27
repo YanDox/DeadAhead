@@ -82,11 +82,16 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -7772528068780816478, guid: 345b146116201ed4fb40fd1a7d62a5b0, type: 3}
+      propertyPath: m_Materials.Array.data[0]
+      value: 
+      objectReference: {fileID: -1285507144799149237, guid: bfa4fb6216e1c514d9e6fd79d43fb4d2, type: 3}
     - target: {fileID: 919132149155446097, guid: 345b146116201ed4fb40fd1a7d62a5b0, type: 3}
       propertyPath: m_Name
       value: Zombie_Boss
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 5866666021909216657, guid: 345b146116201ed4fb40fd1a7d62a5b0, type: 3}
   m_SourcePrefab: {fileID: 100100000, guid: 345b146116201ed4fb40fd1a7d62a5b0, type: 3}
 --- !u!4 &539765642203617826 stripped
 Transform:

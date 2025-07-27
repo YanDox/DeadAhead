@@ -192,7 +192,17 @@ public class CompanionAI : MonoBehaviour
     }
 
 	#endregion
-
+	public void Initialize(Transform playerTarget)
+	{
+		if (playerTarget != null)
+		{
+			player = playerTarget.GetComponent<SC_TPSController>();
+			if (player == null)
+			{
+				player = playerTarget.GetComponentInParent<SC_TPSController>();
+			}
+		}
+	}
 	private void HandleAnimation()
 	{
 		if (animator == null) return;
