@@ -2043,6 +2043,7 @@ GameObject:
   - component: {fileID: 1507321039}
   - component: {fileID: 1507321038}
   - component: {fileID: 1507321037}
+  - component: {fileID: 1507321041}
   m_Layer: 0
   m_Name: schoolbus (1)
   m_TagString: Workshop
@@ -2149,6 +2150,19 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 4
   m_LocalEulerAnglesHint: {x: 0, y: 92.142, z: 0}
+--- !u!114 &1507321041
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1507321036}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8c985d02805eab04c9c6f88903f72eed, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  anim: {fileID: 1507321037}
 --- !u!1 &1598498880
 GameObject:
   m_ObjectHideFlags: 0

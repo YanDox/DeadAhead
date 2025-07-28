@@ -54,7 +54,7 @@ public class SC_TPSController : MonoBehaviour
 	private float jumpCooldownTimer;
 	private bool canPeekLeft;
 	private bool canPeekRight;
-
+	
 	[HideInInspector] public bool canMove = true;
 	[HideInInspector] public bool CanPeekLeft => canPeekLeft;
 	[HideInInspector] public bool CanPeekRight => canPeekRight;
@@ -311,7 +311,7 @@ public class SC_TPSController : MonoBehaviour
 		characterController.Move(rollDirection * rollSpeed);
 	}
 
-	
+
 
 	void HandleCameraRotation()
 	{

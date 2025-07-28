@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using UnityEditor;
 
 public class UI : MonoBehaviour
 {
@@ -30,6 +31,7 @@ public class UI : MonoBehaviour
     public float lowHealthThreshold = 0.3f;
     public Image healthBarImage; // Для изменения цвета
 	public GameObject qestUi;
+
 
 	private SC_WeaponManager weaponManager;
     private Inventory inventory;
@@ -66,8 +68,9 @@ public class UI : MonoBehaviour
         UpdateUltimateDisplay();
         UpdateInventoryDisplay();
         UpdateHealthDisplay();
+      
     }
-
+   
     void UpdateWeaponDisplay()
     {
         if (weaponManager == null || weaponManager.selectedWeapon == null) return;

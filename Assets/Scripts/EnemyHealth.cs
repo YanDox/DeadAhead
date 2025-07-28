@@ -72,7 +72,7 @@ public class EnemyHealth : MonoBehaviour, IEntity
 	void Die()
 	{
 		isDead = true;
-
+		gameObject.tag = "Dead";
 		var enemyAI = GetComponent<EnemyAI>();
 		if (enemyAI != null) enemyAI.enabled = false;
 
